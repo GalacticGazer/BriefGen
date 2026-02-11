@@ -47,6 +47,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing report_id" }, { status: 400 });
     }
 
+    if (session.payment_status !== "paid") {
+      console.warn(
+        "Skipping paid-state update because checkout session is not paid:",
+        session.id,
+        session.payment_status,
+      );
+      return NextResponse.json({ received: true });
+    }
+
     const { data: existingReport, error: existingReportError } = await supabaseAdmin
       .from("reports")
       .select("id, report_status")

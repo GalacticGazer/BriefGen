@@ -20,6 +20,16 @@ function safeEqual(left: string, right: string): boolean {
   return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+export function isValidAdminPassword(candidatePassword: string): boolean {
+  if (!process.env.ADMIN_PASSWORD) {
+    return false;
+  }
+
+  const candidateValue = buildAdminSessionValue(candidatePassword);
+  const expectedValue = buildAdminSessionValue(process.env.ADMIN_PASSWORD);
+  return safeEqual(candidateValue, expectedValue);
+}
+
 export async function isAdminAuthenticated(): Promise<boolean> {
   if (!process.env.ADMIN_PASSWORD) {
     return false;

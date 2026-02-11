@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { buildAdminSessionValue } from "@/lib/admin-auth";
+import { buildAdminSessionValue, isValidAdminPassword } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!password || password !== process.env.ADMIN_PASSWORD) {
+    if (!password || !isValidAdminPassword(password)) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
 
