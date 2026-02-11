@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { sendEmail } from "@/lib/email";
 import {
@@ -96,8 +96,8 @@ export async function POST(request: Request) {
           headers.Authorization = `Bearer ${process.env.INTERNAL_API_SECRET}`;
         }
 
-        // Acknowledge Stripe quickly; trigger generation asynchronously.
-        void triggerStandardReportGeneration(urlBase, headers, reportId);
+        // Queue post-response work using Next.js after() instead of fire-and-forget.
+        after(() => triggerStandardReportGeneration(urlBase, headers, reportId));
       } catch (e) {
         console.error("Error triggering generation:", e);
       }

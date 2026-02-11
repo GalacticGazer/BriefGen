@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const { data: urlData } = supabaseAdmin.storage.from("reports").getPublicUrl(pdfFileName);
     const pdfUrl = urlData.publicUrl;
 
-    await supabaseAdmin
+    const { data: completionUpdate, error: completionUpdateError } = await supabaseAdmin
       .from("reports")
       .update({
         report_status: "completed",
@@ -55,7 +55,16 @@ export async function POST(request: Request) {
         report_pdf_url: pdfUrl,
         delivered_at: new Date().toISOString(),
       })
-      .eq("id", reportId);
+      .eq("id", reportId)
+      .select("id")
+      .maybeSingle();
+
+    if (completionUpdateError || !completionUpdate) {
+      return NextResponse.json(
+        { error: "Failed to update report status to completed" },
+        { status: 500 },
+      );
+    }
 
     const emailContent = reportDeliveryEmail(report.question, pdfUrl);
     await sendEmail({

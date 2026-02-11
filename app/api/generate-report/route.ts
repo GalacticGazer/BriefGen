@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
     const pdfUrl = urlData.publicUrl;
 
-    await supabaseAdmin
+    const { data: completionUpdate, error: completionUpdateError } = await supabaseAdmin
       .from("reports")
       .update({
         report_status: "completed",
@@ -107,7 +107,13 @@ export async function POST(request: Request) {
         delivered_at: new Date().toISOString(),
         operator_notes: `Model: ${AI_CONFIG.model} | Tokens: ${usage.inputTokens}in/${usage.outputTokens}out | Cost: $${usage.estimatedCost}`,
       })
-      .eq("id", reportId);
+      .eq("id", reportId)
+      .select("id")
+      .maybeSingle();
+
+    if (completionUpdateError || !completionUpdate) {
+      throw new Error("Failed to persist completed report state");
+    }
 
     // Delivery email failures should not fail report generation.
     try {
