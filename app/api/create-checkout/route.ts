@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { createReportAccessToken, getReportAccessSecretError } from "@/lib/report-access";
+import {
+  createReportAccessToken,
+  getReportAccessSecretError,
+  REPORT_ACCESS_MAX_AGE_SECONDS,
+} from "@/lib/report-access";
 import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -123,7 +127,7 @@ export async function POST(request: Request) {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: REPORT_ACCESS_MAX_AGE_SECONDS,
       path: "/",
     });
 

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { buildAdminSessionValue, isValidAdminPassword } from "@/lib/admin-auth";
+import {
+  ADMIN_SESSION_MAX_AGE_SECONDS,
+  buildAdminSessionValue,
+  isValidAdminPassword,
+} from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
@@ -24,7 +28,7 @@ export async function POST(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
       path: "/",
     });
 
