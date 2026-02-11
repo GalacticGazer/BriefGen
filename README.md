@@ -65,9 +65,37 @@ Edit one line in `/Users/faz/briefgen/lib/config.ts`:
 stripe listen --forward-to localhost:3000/api/webhook
 ```
 
+## Testing
+
+Run the fast unit + route integration suite:
+
+```bash
+npm run test
+```
+
+Run once (CI mode):
+
+```bash
+npm run test:run
+```
+
+Run with coverage:
+
+```bash
+npm run test:coverage
+```
+
+Run the low-cost browser smoke test (manual/on-demand):
+
+```bash
+npx playwright install chromium
+npm run test:smoke
+```
+
 ## Validation
 
 ```bash
+npm run test:run
 npm run lint
 npm run build
 ```
