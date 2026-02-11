@@ -2,6 +2,7 @@ import chromium from "@sparticuz/chromium";
 import { marked } from "marked";
 import puppeteer from "puppeteer";
 import puppeteerCore from "puppeteer-core";
+import sanitizeHtml from "sanitize-html";
 
 const CATEGORY_LABELS: Record<string, string> = {
   ai_tech: "AI & Technology Analysis",
@@ -21,6 +22,38 @@ export async function generatePDF(
   category: string,
 ): Promise<Buffer> {
   const htmlContent = await marked(markdownContent);
+  const sanitizedHtmlContent = sanitizeHtml(htmlContent, {
+    allowedTags: [
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "p",
+      "ul",
+      "ol",
+      "li",
+      "strong",
+      "em",
+      "blockquote",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      "code",
+      "pre",
+      "a",
+      "hr",
+      "br",
+    ],
+    allowedAttributes: {
+      a: ["href", "title", "target", "rel"],
+    },
+    allowedSchemes: ["http", "https", "mailto"],
+  });
 
   const currentDate = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -166,7 +199,7 @@ export async function generatePDF(
   </div>
 
   <div class="report-content">
-    ${htmlContent}
+    ${sanitizedHtmlContent}
   </div>
 
   <div class="report-footer">
@@ -193,6 +226,20 @@ export async function generatePDF(
 
   try {
     const page = await browser.newPage();
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on("request", (interceptedRequest) => {
+      if (
+        interceptedRequest.resourceType() === "document" ||
+        interceptedRequest.url().startsWith("about:") ||
+        interceptedRequest.url().startsWith("data:")
+      ) {
+        void interceptedRequest.continue();
+        return;
+      }
+
+      void interceptedRequest.abort();
+    });
     await page.setContent(fullHTML, { waitUntil: "networkidle0" });
 
     const pdfBuffer = await page.pdf({

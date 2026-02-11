@@ -68,59 +68,21 @@ export async function POST(request: Request) {
 
     if (reportType === "standard") {
       try {
-        const urlBase = process.env.NEXT_PUBLIC_URL;
+        const requestUrl = new URL(request.url);
+        const urlBase = process.env.NEXT_PUBLIC_URL || requestUrl.origin;
 
-        if (!urlBase) {
-          console.error("NEXT_PUBLIC_URL is missing; cannot trigger /api/generate-report");
-          return NextResponse.json(
-            { error: "Failed to trigger report generation" },
-            { status: 500 },
-          );
-        } else {
-          const headers: HeadersInit = {
-            "Content-Type": "application/json",
-          };
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+        };
 
-          if (process.env.INTERNAL_API_SECRET) {
-            headers.Authorization = `Bearer ${process.env.INTERNAL_API_SECRET}`;
-          }
-
-          const triggerResponse = await fetch(`${urlBase}/api/generate-report`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ reportId }),
-          });
-
-          if (!triggerResponse.ok) {
-            const payload = (await triggerResponse
-              .json()
-              .catch(() => ({ error: null }))) as { error?: string | null };
-            const errorMessage = payload.error ?? "";
-
-            const acceptableInFlightStates =
-              errorMessage === "Report already generated" ||
-              errorMessage === "Report is already generating" ||
-              errorMessage === "Report generation already in progress or unavailable";
-
-            if (!(triggerResponse.status === 409 || acceptableInFlightStates)) {
-              console.error(
-                "Failed to trigger report generation:",
-                triggerResponse.status,
-                errorMessage,
-              );
-              return NextResponse.json(
-                { error: "Failed to trigger report generation" },
-                { status: 500 },
-              );
-            }
-          }
+        if (process.env.INTERNAL_API_SECRET) {
+          headers.Authorization = `Bearer ${process.env.INTERNAL_API_SECRET}`;
         }
+
+        // Acknowledge Stripe quickly; trigger generation asynchronously.
+        void triggerStandardReportGeneration(urlBase, headers, reportId);
       } catch (e) {
         console.error("Error triggering generation:", e);
-        return NextResponse.json(
-          { error: "Failed to trigger report generation" },
-          { status: 500 },
-        );
       }
     } else if (reportType === "premium") {
       await notifyOperatorForPremiumReport(reportId);
@@ -146,6 +108,7 @@ async function notifyOperatorForPremiumReport(reportId: string) {
   }
 
   const amount = `$${(report.amount_cents / 100).toFixed(2)}`;
+  let operatorNotificationSent = false;
 
   // 1) Customer confirmation
   try {
@@ -175,6 +138,7 @@ async function notifyOperatorForPremiumReport(reportId: string) {
         subject: opEmail.subject,
         html: opEmail.html,
       });
+      operatorNotificationSent = true;
     } catch (err) {
       console.error("Operator email notification failed:", err);
     }
@@ -194,13 +158,46 @@ async function notifyOperatorForPremiumReport(reportId: string) {
           }),
         },
       );
+      operatorNotificationSent = true;
     } catch (err) {
       console.error("Telegram notification failed:", err);
     }
   }
 
-  await supabaseAdmin
-    .from("reports")
-    .update({ operator_notified: true })
-    .eq("id", reportId);
+  if (operatorNotificationSent) {
+    await supabaseAdmin
+      .from("reports")
+      .update({ operator_notified: true })
+      .eq("id", reportId);
+  } else {
+    console.error("No operator alert channel succeeded; operator_notified remains false.");
+  }
+}
+
+async function triggerStandardReportGeneration(
+  urlBase: string,
+  headers: HeadersInit,
+  reportId: string,
+) {
+  try {
+    const triggerResponse = await fetch(`${urlBase}/api/generate-report`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ reportId }),
+      keepalive: true,
+    });
+
+    if (!triggerResponse.ok) {
+      const payload = (await triggerResponse
+        .json()
+        .catch(() => ({ error: null }))) as { error?: string | null };
+      console.error(
+        "Failed to trigger report generation:",
+        triggerResponse.status,
+        payload.error ?? "",
+      );
+    }
+  } catch (error) {
+    console.error("Failed to trigger report generation:", error);
+  }
 }
