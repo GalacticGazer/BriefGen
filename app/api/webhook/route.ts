@@ -44,8 +44,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing report_id" }, { status: 400 });
     }
 
-    const reportStatusUpdate =
-      reportType === "premium" ? { report_status: "awaiting_manual" } : {};
+    const { data: existingReport, error: existingReportError } = await supabaseAdmin
+      .from("reports")
+      .select("id, report_status")
+      .eq("id", reportId)
+      .maybeSingle();
+
+    if (existingReportError || !existingReport) {
+      console.error("Failed to fetch existing report before payment update:", existingReportError);
+      return NextResponse.json(
+        { error: "Failed to fetch report for payment update" },
+        { status: 500 },
+      );
+    }
+
+    const shouldSetAwaitingManual =
+      reportType === "premium" && existingReport.report_status !== "completed";
+    const reportStatusUpdate = shouldSetAwaitingManual
+      ? { report_status: "awaiting_manual" }
+      : {};
 
     const { data: updatedReport, error: updateError } = await supabaseAdmin
       .from("reports")
@@ -147,7 +164,7 @@ async function notifyOperatorForPremiumReport(reportId: string) {
   // 3) Telegram (optional)
   if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
     try {
-      await fetch(
+      const telegramResponse = await fetch(
         `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
         {
           method: "POST",
@@ -158,7 +175,20 @@ async function notifyOperatorForPremiumReport(reportId: string) {
           }),
         },
       );
-      operatorNotificationSent = true;
+
+      const telegramPayload = (await telegramResponse
+        .json()
+        .catch(() => null)) as { ok?: boolean; description?: string } | null;
+
+      if (!telegramResponse.ok || telegramPayload?.ok === false) {
+        console.error(
+          "Telegram notification failed:",
+          telegramResponse.status,
+          telegramPayload?.description ?? "",
+        );
+      } else {
+        operatorNotificationSent = true;
+      }
     } catch (err) {
       console.error("Telegram notification failed:", err);
     }
