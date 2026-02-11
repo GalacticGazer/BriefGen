@@ -267,7 +267,7 @@ async function markGenerationTriggerFailed(reportId: string, reason: string) {
       operator_notes: `Generation trigger failed: ${reason}`,
     })
     .eq("id", reportId)
-    .eq("report_status", "pending");
+    .in("report_status", ["pending", "generating"]);
 
   if (error) {
     console.error("Failed to persist generation trigger failure:", error);
