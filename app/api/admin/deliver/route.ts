@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { appendNote, hasFreshClaim, withClaim, withoutClaim } from "@/lib/claim-utils";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { sendEmail } from "@/lib/email";
 import { reportDeliveryEmail } from "@/lib/email-templates";
@@ -7,6 +8,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+const MANUAL_EMAIL_CLAIM_PREFIX = "manual_email_claim:";
+const MANUAL_EMAIL_CLAIM_STALE_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -89,16 +92,35 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: emailClaim, error: emailClaimError } = await supabaseAdmin
+    if (hasFreshClaim(report.operator_notes, MANUAL_EMAIL_CLAIM_PREFIX, MANUAL_EMAIL_CLAIM_STALE_MS)) {
+      return NextResponse.json({ error: "Delivery already in progress" }, { status: 409 });
+    }
+
+    const claimTimestamp = new Date().toISOString();
+    const claimNotes = withClaim(
+      report.operator_notes,
+      MANUAL_EMAIL_CLAIM_PREFIX,
+      claimTimestamp,
+    );
+
+    let claimQuery = supabaseAdmin
       .from("reports")
-      .update({ email_sent: true })
+      .update({ operator_notes: claimNotes })
       .eq("id", reportId)
-      .eq("email_sent", false)
-      .select("id")
+      .eq("email_sent", false);
+
+    if (report.operator_notes === null) {
+      claimQuery = claimQuery.is("operator_notes", null);
+    } else {
+      claimQuery = claimQuery.eq("operator_notes", report.operator_notes);
+    }
+
+    const { data: emailClaim, error: emailClaimError } = await claimQuery
+      .select("id, email_sent, report_pdf_url, operator_notes")
       .maybeSingle();
 
     if (emailClaimError) {
-      return NextResponse.json({ error: "Failed to claim email delivery" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to claim delivery lock" }, { status: 500 });
     }
 
     if (!emailClaim) {
@@ -121,30 +143,36 @@ export async function POST(request: Request) {
         to: report.customer_email,
         subject: emailContent.subject,
         html: emailContent.html,
+        idempotencyKey: `manual-delivery-${reportId}`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      const previousNotes = typeof report.operator_notes === "string" ? report.operator_notes : "";
-      const separator = previousNotes ? " | " : "";
+      const failureNotes = appendNote(
+        withoutClaim(claimNotes, MANUAL_EMAIL_CLAIM_PREFIX),
+        `Manual delivery email failed: ${message}`,
+      );
       await supabaseAdmin
         .from("reports")
         .update({
-          email_sent: false,
-          operator_notes: `${previousNotes}${separator}Manual delivery email failed: ${message}`,
+          operator_notes: failureNotes,
         })
         .eq("id", reportId)
-        .eq("email_sent", true);
+        .eq("operator_notes", claimNotes);
 
       return NextResponse.json({ error: "Email delivery failed" }, { status: 500 });
     }
 
+    const finalNotes = withoutClaim(claimNotes, MANUAL_EMAIL_CLAIM_PREFIX);
     const { data: completionUpdate, error: completionUpdateError } = await supabaseAdmin
       .from("reports")
       .update({
         report_status: "completed",
         delivered_at: new Date().toISOString(),
+        email_sent: true,
+        operator_notes: finalNotes,
       })
       .eq("id", reportId)
+      .eq("operator_notes", claimNotes)
       .select("id")
       .maybeSingle();
 

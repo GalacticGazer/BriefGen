@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { appendNote, hasFreshClaim, withClaim, withoutClaim } from "@/lib/claim-utils";
 import { sendEmail } from "@/lib/email";
 import {
   operatorNotificationEmail,
@@ -9,6 +10,8 @@ import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
+const PREMIUM_NOTIFICATION_CLAIM_PREFIX = "premium_notify_claim:";
+const PREMIUM_NOTIFICATION_CLAIM_STALE_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
@@ -110,21 +113,61 @@ export async function POST(request: Request) {
 }
 
 async function notifyOperatorForPremiumReport(reportId: string) {
-  const { data: report, error: claimError } = await supabaseAdmin
+  const { data: report, error: reportError } = await supabaseAdmin
     .from("reports")
-    .update({ operator_notified: true })
-    .eq("id", reportId)
-    .eq("operator_notified", false)
     .select("*")
+    .eq("id", reportId)
     .maybeSingle();
 
+  if (reportError) {
+    console.error("Failed to load report for premium notifications:", reportError);
+    return;
+  }
+
+  if (!report) {
+    return;
+  }
+
+  if (report.operator_notified) {
+    return;
+  }
+
+  if (
+    hasFreshClaim(
+      report.operator_notes,
+      PREMIUM_NOTIFICATION_CLAIM_PREFIX,
+      PREMIUM_NOTIFICATION_CLAIM_STALE_MS,
+    )
+  ) {
+    return;
+  }
+
+  const claimTimestamp = new Date().toISOString();
+  const claimNotes = withClaim(
+    report.operator_notes,
+    PREMIUM_NOTIFICATION_CLAIM_PREFIX,
+    claimTimestamp,
+  );
+
+  let claimQuery = supabaseAdmin
+    .from("reports")
+    .update({ operator_notes: claimNotes })
+    .eq("id", reportId)
+    .eq("operator_notified", false);
+
+  if (report.operator_notes === null) {
+    claimQuery = claimQuery.is("operator_notes", null);
+  } else {
+    claimQuery = claimQuery.eq("operator_notes", report.operator_notes);
+  }
+
+  const { data: claimedReport, error: claimError } = await claimQuery.select("*").maybeSingle();
   if (claimError) {
     console.error("Failed to claim premium-notification lock:", claimError);
     return;
   }
 
-  if (!report) {
-    // Already claimed/notified by another delivery attempt.
+  if (!claimedReport) {
     return;
   }
 
@@ -133,11 +176,12 @@ async function notifyOperatorForPremiumReport(reportId: string) {
 
   // 1) Customer confirmation
   try {
-    const customerEmail = premiumReportReceivedEmail(report.question);
+    const customerEmail = premiumReportReceivedEmail(claimedReport.question);
     await sendEmail({
-      to: report.customer_email,
+      to: claimedReport.customer_email,
       subject: customerEmail.subject,
       html: customerEmail.html,
+      idempotencyKey: `premium-customer-${reportId}`,
     });
   } catch (err) {
     console.error("Customer confirmation email failed:", err);
@@ -150,14 +194,15 @@ async function notifyOperatorForPremiumReport(reportId: string) {
     try {
       const opEmail = operatorNotificationEmail(
         reportId,
-        report.customer_email,
-        report.question,
+        claimedReport.customer_email,
+        claimedReport.question,
         amount,
       );
       await sendEmail({
         to: process.env.OPERATOR_EMAIL,
         subject: opEmail.subject,
         html: opEmail.html,
+        idempotencyKey: `premium-operator-${reportId}`,
       });
       operatorNotificationSent = true;
     } catch (err) {
@@ -175,7 +220,7 @@ async function notifyOperatorForPremiumReport(reportId: string) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: process.env.TELEGRAM_CHAT_ID,
-            text: `🔔 PREMIUM REPORT REQUEST\n\nCustomer: ${report.customer_email}\nQuestion: ${report.question}\nAmount: ${amount}\nID: ${reportId}`,
+            text: `🔔 PREMIUM REPORT REQUEST\n\nCustomer: ${claimedReport.customer_email}\nQuestion: ${claimedReport.question}\nAmount: ${amount}\nID: ${reportId}`,
           }),
         },
       );
@@ -199,18 +244,26 @@ async function notifyOperatorForPremiumReport(reportId: string) {
   }
 
   if (operatorNotificationSent) {
-    return;
-  } else {
-    const previousNotes = typeof report.operator_notes === "string" ? report.operator_notes : "";
-    const separator = previousNotes ? " | " : "";
     await supabaseAdmin
       .from("reports")
       .update({
-        operator_notified: false,
-        operator_notes: `${previousNotes}${separator}Operator notification failed at ${new Date().toISOString()}`,
+        operator_notified: true,
+        operator_notes: withoutClaim(claimNotes, PREMIUM_NOTIFICATION_CLAIM_PREFIX),
       })
       .eq("id", reportId)
-      .eq("operator_notified", true);
+      .eq("operator_notes", claimNotes);
+  } else {
+    const failureNotes = appendNote(
+      withoutClaim(claimNotes, PREMIUM_NOTIFICATION_CLAIM_PREFIX),
+      `Operator notification failed at ${new Date().toISOString()}`,
+    );
+    await supabaseAdmin
+      .from("reports")
+      .update({
+        operator_notes: failureNotes,
+      })
+      .eq("id", reportId)
+      .eq("operator_notes", claimNotes);
 
     console.error("No operator alert channel succeeded; operator_notified remains false.");
   }
