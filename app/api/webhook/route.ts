@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const reportId = session.metadata?.report_id;
-    const reportType = session.metadata?.report_type;
+    const metadataReportType = session.metadata?.report_type;
 
     if (!reportId) {
       console.error("No report_id in session metadata");
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     const { data: existingReport, error: existingReportError } = await supabaseAdmin
       .from("reports")
-      .select("id, report_status")
+      .select("id, report_status, report_type, stripe_session_id")
       .eq("id", reportId)
       .maybeSingle();
 
@@ -70,8 +70,33 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!existingReport.stripe_session_id || existingReport.stripe_session_id !== session.id) {
+      console.error("Stripe session mismatch for report:", {
+        reportId,
+        expectedSessionId: existingReport.stripe_session_id,
+        receivedSessionId: session.id,
+      });
+      return NextResponse.json({ error: "Stripe session mismatch" }, { status: 400 });
+    }
+
+    const resolvedReportType =
+      metadataReportType === "standard" || metadataReportType === "premium"
+        ? metadataReportType
+        : existingReport.report_type === "standard" || existingReport.report_type === "premium"
+          ? existingReport.report_type
+          : null;
+
+    if (!resolvedReportType) {
+      console.error("Missing or invalid report type for paid checkout session:", {
+        reportId,
+        metadataReportType,
+        storedReportType: existingReport.report_type,
+      });
+      return NextResponse.json({ error: "Invalid report type" }, { status: 500 });
+    }
+
     const shouldSetAwaitingManual =
-      reportType === "premium" && existingReport.report_status !== "completed";
+      resolvedReportType === "premium" && existingReport.report_status !== "completed";
     const reportStatusUpdate = shouldSetAwaitingManual
       ? { report_status: "awaiting_manual" }
       : {};
@@ -95,7 +120,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (reportType === "standard") {
+    if (resolvedReportType === "standard") {
       try {
         const requestUrl = new URL(request.url);
         const urlBase = process.env.NEXT_PUBLIC_URL || requestUrl.origin;
@@ -113,7 +138,7 @@ export async function POST(request: Request) {
       } catch (e) {
         console.error("Error triggering generation:", e);
       }
-    } else if (reportType === "premium") {
+    } else if (resolvedReportType === "premium") {
       await notifyOperatorForPremiumReport(reportId);
     }
   }
