@@ -72,6 +72,10 @@ export async function POST(request: Request) {
 
         if (!urlBase) {
           console.error("NEXT_PUBLIC_URL is missing; cannot trigger /api/generate-report");
+          return NextResponse.json(
+            { error: "Failed to trigger report generation" },
+            { status: 500 },
+          );
         } else {
           const headers: HeadersInit = {
             "Content-Type": "application/json",
@@ -81,14 +85,42 @@ export async function POST(request: Request) {
             headers.Authorization = `Bearer ${process.env.INTERNAL_API_SECRET}`;
           }
 
-          fetch(`${urlBase}/api/generate-report`, {
+          const triggerResponse = await fetch(`${urlBase}/api/generate-report`, {
             method: "POST",
             headers,
             body: JSON.stringify({ reportId }),
-          }).catch((err) => console.error("Failed to trigger report generation:", err));
+          });
+
+          if (!triggerResponse.ok) {
+            const payload = (await triggerResponse
+              .json()
+              .catch(() => ({ error: null }))) as { error?: string | null };
+            const errorMessage = payload.error ?? "";
+
+            const acceptableInFlightStates =
+              errorMessage === "Report already generated" ||
+              errorMessage === "Report is already generating" ||
+              errorMessage === "Report generation already in progress or unavailable";
+
+            if (!(triggerResponse.status === 409 || acceptableInFlightStates)) {
+              console.error(
+                "Failed to trigger report generation:",
+                triggerResponse.status,
+                errorMessage,
+              );
+              return NextResponse.json(
+                { error: "Failed to trigger report generation" },
+                { status: 500 },
+              );
+            }
+          }
         }
       } catch (e) {
         console.error("Error triggering generation:", e);
+        return NextResponse.json(
+          { error: "Failed to trigger report generation" },
+          { status: 500 },
+        );
       }
     } else if (reportType === "premium") {
       await notifyOperatorForPremiumReport(reportId);
@@ -106,6 +138,10 @@ async function notifyOperatorForPremiumReport(reportId: string) {
     .single();
 
   if (!report) {
+    return;
+  }
+
+  if (report.operator_notified) {
     return;
   }
 

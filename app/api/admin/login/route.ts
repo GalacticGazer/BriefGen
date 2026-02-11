@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { buildAdminSessionValue } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     const cookieStore = await cookies();
-    cookieStore.set("admin_session", process.env.ADMIN_PASSWORD, {
+    cookieStore.set("admin_session", buildAdminSessionValue(process.env.ADMIN_PASSWORD), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
