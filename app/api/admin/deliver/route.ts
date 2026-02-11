@@ -89,6 +89,32 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: emailClaim, error: emailClaimError } = await supabaseAdmin
+      .from("reports")
+      .update({ email_sent: true })
+      .eq("id", reportId)
+      .eq("email_sent", false)
+      .select("id")
+      .maybeSingle();
+
+    if (emailClaimError) {
+      return NextResponse.json({ error: "Failed to claim email delivery" }, { status: 500 });
+    }
+
+    if (!emailClaim) {
+      const { data: latestReport } = await supabaseAdmin
+        .from("reports")
+        .select("email_sent, report_pdf_url")
+        .eq("id", reportId)
+        .maybeSingle();
+
+      if (latestReport?.email_sent && latestReport.report_pdf_url) {
+        return NextResponse.json({ success: true, pdfUrl: latestReport.report_pdf_url });
+      }
+
+      return NextResponse.json({ error: "Delivery already in progress" }, { status: 409 });
+    }
+
     try {
       const emailContent = reportDeliveryEmail(report.question, pdfUrl);
       await sendEmail({
@@ -98,10 +124,16 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
+      const previousNotes = typeof report.operator_notes === "string" ? report.operator_notes : "";
+      const separator = previousNotes ? " | " : "";
       await supabaseAdmin
         .from("reports")
-        .update({ operator_notes: `Manual delivery email failed: ${message}` })
-        .eq("id", reportId);
+        .update({
+          email_sent: false,
+          operator_notes: `${previousNotes}${separator}Manual delivery email failed: ${message}`,
+        })
+        .eq("id", reportId)
+        .eq("email_sent", true);
 
       return NextResponse.json({ error: "Email delivery failed" }, { status: 500 });
     }
@@ -111,18 +143,12 @@ export async function POST(request: Request) {
       .update({
         report_status: "completed",
         delivered_at: new Date().toISOString(),
-        email_sent: true,
       })
       .eq("id", reportId)
       .select("id")
       .maybeSingle();
 
     if (completionUpdateError || !completionUpdate) {
-      await supabaseAdmin
-        .from("reports")
-        .update({ email_sent: true })
-        .eq("id", reportId);
-
       return NextResponse.json(
         { error: "Email sent, but failed to mark report completed" },
         { status: 500 },

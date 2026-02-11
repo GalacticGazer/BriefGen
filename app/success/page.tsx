@@ -60,6 +60,16 @@ function SuccessContent() {
 
         if (!response.ok) {
           setError(data.error ?? "Unable to check report status right now. Please refresh shortly.");
+
+          const isNonRecoverable = [400, 403, 404].includes(response.status);
+          if (isNonRecoverable) {
+            setStatus("failed");
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            }
+          }
+
           return;
         }
 
