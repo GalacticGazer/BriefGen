@@ -5,7 +5,8 @@ const currentDate = () =>
     day: "numeric",
   });
 
-const BASE_SYSTEM_PROMPT = `You are BriefGen, a professional research analyst producing
+function buildBaseSystemPrompt() {
+  return `You are BriefGen, a professional research analyst producing
 comprehensive reports for business professionals and decision-makers.
 
 REPORT STRUCTURE (follow this exactly):
@@ -32,6 +33,7 @@ FORMATTING RULES:
 - Do NOT include a report title — the system adds this.
 - Do NOT include any preamble like "Here is your report..." — start directly with the
   Executive Summary.`;
+}
 
 const CATEGORY_PROMPTS: Record<string, string> = {
   ai_tech: `SPECIALIZATION: AI & Technology Analysis
@@ -118,7 +120,7 @@ export function buildReportPrompt(category: string, userQuestion: string) {
   const categoryPrompt = CATEGORY_PROMPTS[category] || CATEGORY_PROMPTS.custom;
 
   return {
-    systemPrompt: `${BASE_SYSTEM_PROMPT}\n\n${categoryPrompt}`,
+    systemPrompt: `${buildBaseSystemPrompt()}\n\n${categoryPrompt}`,
     userPrompt: `Produce a comprehensive research report on the following:\n\n"${userQuestion}"\n\nBe thorough, specific, and data-driven. This report will be delivered as a professional PDF to a paying customer.`,
   };
 }

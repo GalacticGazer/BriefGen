@@ -110,17 +110,21 @@ export async function POST(request: Request) {
 }
 
 async function notifyOperatorForPremiumReport(reportId: string) {
-  const { data: report } = await supabaseAdmin
+  const { data: report, error: claimError } = await supabaseAdmin
     .from("reports")
-    .select("*")
+    .update({ operator_notified: true })
     .eq("id", reportId)
-    .single();
+    .eq("operator_notified", false)
+    .select("*")
+    .maybeSingle();
 
-  if (!report) {
+  if (claimError) {
+    console.error("Failed to claim premium-notification lock:", claimError);
     return;
   }
 
-  if (report.operator_notified) {
+  if (!report) {
+    // Already claimed/notified by another delivery attempt.
     return;
   }
 
@@ -195,11 +199,19 @@ async function notifyOperatorForPremiumReport(reportId: string) {
   }
 
   if (operatorNotificationSent) {
+    return;
+  } else {
+    const previousNotes = typeof report.operator_notes === "string" ? report.operator_notes : "";
+    const separator = previousNotes ? " | " : "";
     await supabaseAdmin
       .from("reports")
-      .update({ operator_notified: true })
-      .eq("id", reportId);
-  } else {
+      .update({
+        operator_notified: false,
+        operator_notes: `${previousNotes}${separator}Operator notification failed at ${new Date().toISOString()}`,
+      })
+      .eq("id", reportId)
+      .eq("operator_notified", true);
+
     console.error("No operator alert channel succeeded; operator_notified remains false.");
   }
 }
