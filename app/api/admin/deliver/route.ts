@@ -19,7 +19,9 @@ export async function POST(request: Request) {
       markdownContent?: string;
     };
 
-    if (!reportId || !markdownContent || !markdownContent.trim()) {
+    const trimmedMarkdown = markdownContent?.trim() ?? "";
+
+    if (!reportId || !trimmedMarkdown) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -33,7 +35,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    const pdfBuffer = await generatePDF(markdownContent, report.question, report.category);
+    // If the email was already sent, avoid re-sending; just ensure the report is marked completed.
+    if (report.email_sent && report.report_pdf_url) {
+      const { data: completionUpdate, error: completionUpdateError } = await supabaseAdmin
+        .from("reports")
+        .update({
+          report_status: "completed",
+          delivered_at: report.delivered_at ?? new Date().toISOString(),
+        })
+        .eq("id", reportId)
+        .select("id")
+        .maybeSingle();
+
+      if (completionUpdateError || !completionUpdate) {
+        return NextResponse.json(
+          { error: "Email already sent, but failed to mark report completed" },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ success: true, pdfUrl: report.report_pdf_url });
+    }
+
+    const pdfBuffer = await generatePDF(trimmedMarkdown, report.question, report.category);
 
     const pdfFileName = `${reportId}.pdf`;
     const { error: uploadError } = await supabaseAdmin.storage
@@ -47,33 +71,63 @@ export async function POST(request: Request) {
     const { data: urlData } = supabaseAdmin.storage.from("reports").getPublicUrl(pdfFileName);
     const pdfUrl = urlData.publicUrl;
 
+    // Persist the output, but do not mark completed until the delivery email succeeds.
+    const { data: contentUpdate, error: contentUpdateError } = await supabaseAdmin
+      .from("reports")
+      .update({
+        report_content: trimmedMarkdown,
+        report_pdf_url: pdfUrl,
+      })
+      .eq("id", reportId)
+      .select("id")
+      .maybeSingle();
+
+    if (contentUpdateError || !contentUpdate) {
+      return NextResponse.json(
+        { error: "Failed to persist report content" },
+        { status: 500 },
+      );
+    }
+
+    try {
+      const emailContent = reportDeliveryEmail(report.question, pdfUrl);
+      await sendEmail({
+        to: report.customer_email,
+        subject: emailContent.subject,
+        html: emailContent.html,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      await supabaseAdmin
+        .from("reports")
+        .update({ operator_notes: `Manual delivery email failed: ${message}` })
+        .eq("id", reportId);
+
+      return NextResponse.json({ error: "Email delivery failed" }, { status: 500 });
+    }
+
     const { data: completionUpdate, error: completionUpdateError } = await supabaseAdmin
       .from("reports")
       .update({
         report_status: "completed",
-        report_content: markdownContent,
-        report_pdf_url: pdfUrl,
         delivered_at: new Date().toISOString(),
+        email_sent: true,
       })
       .eq("id", reportId)
       .select("id")
       .maybeSingle();
 
     if (completionUpdateError || !completionUpdate) {
+      await supabaseAdmin
+        .from("reports")
+        .update({ email_sent: true })
+        .eq("id", reportId);
+
       return NextResponse.json(
-        { error: "Failed to update report status to completed" },
+        { error: "Email sent, but failed to mark report completed" },
         { status: 500 },
       );
     }
-
-    const emailContent = reportDeliveryEmail(report.question, pdfUrl);
-    await sendEmail({
-      to: report.customer_email,
-      subject: emailContent.subject,
-      html: emailContent.html,
-    });
-
-    await supabaseAdmin.from("reports").update({ email_sent: true }).eq("id", reportId);
 
     return NextResponse.json({ success: true, pdfUrl });
   } catch (error) {

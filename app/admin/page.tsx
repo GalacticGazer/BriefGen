@@ -83,6 +83,8 @@ export default function AdminPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingReports, setPendingReports] = useState<Report[]>([]);
   const [allReports, setAllReports] = useState<Report[]>([]);
+  const [pendingHasMore, setPendingHasMore] = useState(true);
+  const [pendingIsLoadingMore, setPendingIsLoadingMore] = useState(false);
 
   const [activeTab, setActiveTab] = useState<AdminTab>("pending");
   const [allLimit, setAllLimit] = useState(50);
@@ -112,9 +114,16 @@ export default function AdminPage() {
   }, []);
 
   const fetchReports = useCallback(
-    async (options: { reportStatus?: string; limit: number }): Promise<Report[] | null> => {
+    async (options: {
+      reportStatus?: string;
+      limit: number;
+      offset?: number;
+    }): Promise<Report[] | null> => {
       const params = new URLSearchParams();
       params.set("limit", String(options.limit));
+      if (options.offset !== undefined) {
+        params.set("offset", String(options.offset));
+      }
       if (options.reportStatus) {
         params.set("report_status", options.reportStatus);
       }
@@ -153,12 +162,13 @@ export default function AdminPage() {
         }
 
         const [pending, all] = await Promise.all([
-          fetchReports({ reportStatus: "awaiting_manual", limit: 50 }),
+          fetchReports({ reportStatus: "awaiting_manual", limit: 50, offset: 0 }),
           fetchReports({ limit: limitForAll }),
         ]);
 
         if (pending) {
           setPendingReports(pending);
+          setPendingHasMore(pending.length === 50);
         }
 
         if (all) {
@@ -219,6 +229,49 @@ export default function AdminPage() {
     const nextLimit = allLimit + 50;
     setAllLimit(nextLimit);
     await loadDashboard(nextLimit);
+  };
+
+  const handleLoadMorePending = async () => {
+    if (pendingIsLoadingMore || !pendingHasMore) {
+      return;
+    }
+
+    setPendingIsLoadingMore(true);
+
+    try {
+      const nextPage = await fetchReports({
+        reportStatus: "awaiting_manual",
+        limit: 50,
+        offset: pendingReports.length,
+      });
+
+      if (!nextPage) {
+        return;
+      }
+
+      if (nextPage.length === 0) {
+        setPendingHasMore(false);
+        return;
+      }
+
+      setPendingReports((prev) => {
+        const seen = new Set(prev.map((report) => report.id));
+        const merged = [...prev];
+
+        for (const report of nextPage) {
+          if (!seen.has(report.id)) {
+            seen.add(report.id);
+            merged.push(report);
+          }
+        }
+
+        return merged;
+      });
+
+      setPendingHasMore(nextPage.length === 50);
+    } finally {
+      setPendingIsLoadingMore(false);
+    }
   };
 
   const toggleExpanded = (report: Report) => {
@@ -503,6 +556,17 @@ export default function AdminPage() {
                       </article>
                     );
                   })
+                )}
+
+                {pendingReports.length > 0 && pendingHasMore && (
+                  <button
+                    type="button"
+                    onClick={() => void handleLoadMorePending()}
+                    disabled={pendingIsLoadingMore}
+                    className="inline-flex w-full items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-brand-500 hover:text-brand-500 disabled:cursor-not-allowed disabled:text-gray-400"
+                  >
+                    {pendingIsLoadingMore ? "Loading..." : "Load More"}
+                  </button>
                 )}
               </div>
             )}
