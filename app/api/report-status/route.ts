@@ -30,7 +30,16 @@ export async function GET(request: Request) {
     .eq("id", reportId)
     .single();
 
-  if (error || !report) {
+  if (error) {
+    if (error.code === "PGRST116") {
+      return NextResponse.json({ error: "Report not found" }, { status: 404 });
+    }
+
+    console.error("Failed to fetch report status:", error);
+    return NextResponse.json({ error: "Failed to fetch report status" }, { status: 500 });
+  }
+
+  if (!report) {
     return NextResponse.json({ error: "Report not found" }, { status: 404 });
   }
 

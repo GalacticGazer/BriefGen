@@ -139,7 +139,13 @@ export async function POST(request: Request) {
         console.error("Error triggering generation:", e);
       }
     } else if (resolvedReportType === "premium") {
-      await notifyOperatorForPremiumReport(reportId);
+      after(async () => {
+        try {
+          await notifyOperatorForPremiumReport(reportId);
+        } catch (error) {
+          console.error("Error sending premium notifications:", error);
+        }
+      });
     }
   }
 
