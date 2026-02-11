@@ -45,40 +45,48 @@ function SuccessContent() {
     let cancelled = false;
 
     const checkStatus = async () => {
-      const response = await fetch(`/api/report-status?id=${encodeURIComponent(reportId)}`);
-      const data = (await response.json()) as {
-        error?: string;
-        status?: ReportStatus;
-        pdfUrl?: string | null;
-        reportType?: ReportType;
-      };
+      try {
+        const response = await fetch(`/api/report-status?id=${encodeURIComponent(reportId)}`);
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          status?: ReportStatus;
+          pdfUrl?: string | null;
+          reportType?: ReportType;
+        };
 
-      if (cancelled) {
-        return;
-      }
+        if (cancelled) {
+          return;
+        }
 
-      if (!response.ok) {
-        setError(data.error ?? "Unable to check report status right now. Please refresh shortly.");
-        return;
-      }
+        if (!response.ok) {
+          setError(data.error ?? "Unable to check report status right now. Please refresh shortly.");
+          return;
+        }
 
-      if (data.status) {
-        setStatus(data.status);
-      }
+        if (data.status) {
+          setStatus(data.status);
+        }
 
-      if (data.pdfUrl) {
-        setPdfUrl(data.pdfUrl);
-      }
+        if (data.pdfUrl) {
+          setPdfUrl(data.pdfUrl);
+        }
 
-      if (data.reportType) {
-        setReportType(data.reportType);
-      }
+        if (data.reportType) {
+          setReportType(data.reportType);
+        }
 
-      setError(null);
+        setError(null);
 
-      if (data.status && TERMINAL_STATUSES.includes(data.status) && intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+        if (data.status && TERMINAL_STATUSES.includes(data.status) && intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setError("Unable to check report status right now. Retrying in a few seconds.");
       }
     };
 
