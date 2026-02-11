@@ -10,6 +10,15 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci_dummy_anon_key
+      SUPABASE_SERVICE_KEY: ci_dummy_service_key
+      STRIPE_SECRET_KEY: sk_test_ci_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_ci_dummy
+      NEXT_PUBLIC_URL: http://localhost:3000
+      INTERNAL_API_SECRET: ci_dummy_secret
+      ADMIN_PASSWORD: ci_dummy_password
 
     steps:
       - name: Checkout
