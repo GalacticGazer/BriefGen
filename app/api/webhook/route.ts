@@ -302,10 +302,7 @@ async function triggerStandardReportGeneration(
         errorMessage,
       );
 
-      const inFlightConflict =
-        triggerResponse.status === 409 &&
-        (errorMessage === "Report is already generating" ||
-          errorMessage === "Report generation already in progress or unavailable");
+      const inFlightConflict = triggerResponse.status === 409;
 
       if (!inFlightConflict) {
         await markGenerationTriggerFailed(
