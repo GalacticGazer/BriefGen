@@ -16,11 +16,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let reportId: string | null = null;
+  let claimNotes: string | null = null;
+
   try {
-    const { reportId, markdownContent } = (await request.json()) as {
+    const { reportId: incomingReportId, markdownContent } = (await request.json()) as {
       reportId?: string;
       markdownContent?: string;
     };
+    reportId = incomingReportId ?? null;
 
     const trimmedMarkdown = markdownContent?.trim() ?? "";
 
@@ -60,44 +64,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, pdfUrl: report.report_pdf_url });
     }
 
-    const pdfBuffer = await generatePDF(trimmedMarkdown, report.question, report.category);
-
-    const pdfFileName = `${reportId}.pdf`;
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from("reports")
-      .upload(pdfFileName, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-    if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
-    }
-
-    const { data: urlData } = supabaseAdmin.storage.from("reports").getPublicUrl(pdfFileName);
-    const pdfUrl = urlData.publicUrl;
-
-    // Persist the output, but do not mark completed until the delivery email succeeds.
-    const { data: contentUpdate, error: contentUpdateError } = await supabaseAdmin
-      .from("reports")
-      .update({
-        report_content: trimmedMarkdown,
-        report_pdf_url: pdfUrl,
-      })
-      .eq("id", reportId)
-      .select("id")
-      .maybeSingle();
-
-    if (contentUpdateError || !contentUpdate) {
-      return NextResponse.json(
-        { error: "Failed to persist report content" },
-        { status: 500 },
-      );
-    }
-
     if (hasFreshClaim(report.operator_notes, MANUAL_EMAIL_CLAIM_PREFIX, MANUAL_EMAIL_CLAIM_STALE_MS)) {
       return NextResponse.json({ error: "Delivery already in progress" }, { status: 409 });
     }
 
     const claimTimestamp = new Date().toISOString();
-    const claimNotes = withClaim(
+    claimNotes = withClaim(
       report.operator_notes,
       MANUAL_EMAIL_CLAIM_PREFIX,
       claimTimestamp,
@@ -135,6 +107,41 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ error: "Delivery already in progress" }, { status: 409 });
+    }
+
+    const pdfBuffer = await generatePDF(trimmedMarkdown, report.question, report.category);
+
+    const pdfFileName = `${reportId}.pdf`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("reports")
+      .upload(pdfFileName, pdfBuffer, { contentType: "application/pdf", upsert: true });
+
+    if (uploadError) {
+      await releaseManualClaim(reportId, claimNotes, `PDF upload failed: ${uploadError.message}`);
+      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("reports").getPublicUrl(pdfFileName);
+    const pdfUrl = urlData.publicUrl;
+
+    // Persist the output, but do not mark completed until the delivery email succeeds.
+    const { data: contentUpdate, error: contentUpdateError } = await supabaseAdmin
+      .from("reports")
+      .update({
+        report_content: trimmedMarkdown,
+        report_pdf_url: pdfUrl,
+      })
+      .eq("id", reportId)
+      .eq("operator_notes", claimNotes)
+      .select("id")
+      .maybeSingle();
+
+    if (contentUpdateError || !contentUpdate) {
+      await releaseManualClaim(reportId, claimNotes, "Failed to persist report content");
+      return NextResponse.json(
+        { error: "Failed to persist report content" },
+        { status: 500 },
+      );
     }
 
     try {
@@ -185,7 +192,25 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, pdfUrl });
   } catch (error) {
+    if (reportId && claimNotes) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      await releaseManualClaim(reportId, claimNotes, `Unexpected error: ${message}`);
+    }
+
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+async function releaseManualClaim(reportId: string, claimNotes: string, reason: string) {
+  const notes = appendNote(
+    withoutClaim(claimNotes, MANUAL_EMAIL_CLAIM_PREFIX),
+    reason,
+  );
+
+  await supabaseAdmin
+    .from("reports")
+    .update({ operator_notes: notes })
+    .eq("id", reportId)
+    .eq("operator_notes", claimNotes);
 }
