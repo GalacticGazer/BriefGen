@@ -44,6 +44,6 @@ CREATE POLICY "Service role full access" ON reports
   USING (auth.role() = 'service_role')
   WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY "Public can read own report status" ON reports
-  FOR SELECT
-  USING (true);
+-- Do not grant public/anon SELECT access to reports.
+-- Status polling is served through server-side API routes.
+DROP POLICY IF EXISTS "Public can read own report status" ON reports;

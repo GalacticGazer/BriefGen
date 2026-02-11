@@ -45,6 +45,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Report already generated" }, { status: 400 });
     }
 
+    if (report.report_status === "generating") {
+      return NextResponse.json({ error: "Report is already generating" }, { status: 409 });
+    }
+
     if (report.report_type !== "standard") {
       return NextResponse.json(
         { error: "Only standard reports are auto-generated" },
@@ -52,7 +56,23 @@ export async function POST(request: Request) {
       );
     }
 
-    await supabaseAdmin.from("reports").update({ report_status: "generating" }).eq("id", reportId);
+    const { data: lockRows, error: lockError } = await supabaseAdmin
+      .from("reports")
+      .update({ report_status: "generating" })
+      .eq("id", reportId)
+      .in("report_status", ["pending", "failed"])
+      .select("id");
+
+    if (lockError) {
+      throw new Error(`Failed to acquire generation lock: ${lockError.message}`);
+    }
+
+    if (!lockRows || lockRows.length === 0) {
+      return NextResponse.json(
+        { error: "Report generation already in progress or unavailable" },
+        { status: 409 },
+      );
+    }
 
     const { content, usage } = await generateReport(report.category, report.question);
 

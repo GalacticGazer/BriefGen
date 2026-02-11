@@ -45,20 +45,26 @@ export async function POST(request: Request) {
     }
 
     const reportStatusUpdate =
-      reportType === "standard"
-        ? { report_status: "generating" }
-        : reportType === "premium"
-          ? { report_status: "awaiting_manual" }
-          : {};
+      reportType === "premium" ? { report_status: "awaiting_manual" } : {};
 
-    await supabaseAdmin
+    const { data: updatedReport, error: updateError } = await supabaseAdmin
       .from("reports")
       .update({
         payment_status: "paid",
         stripe_payment_intent: String(session.payment_intent ?? ""),
         ...reportStatusUpdate,
       })
-      .eq("id", reportId);
+      .eq("id", reportId)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError || !updatedReport) {
+      console.error("Failed to persist webhook payment update:", updateError);
+      return NextResponse.json(
+        { error: "Failed to persist payment update" },
+        { status: 500 },
+      );
+    }
 
     if (reportType === "standard") {
       try {
