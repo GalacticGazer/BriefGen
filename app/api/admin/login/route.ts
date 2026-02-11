@@ -1,0 +1,34 @@
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+export const runtime = "nodejs";
+
+export async function POST(request: Request) {
+  try {
+    const { password } = (await request.json()) as { password?: string };
+
+    if (!process.env.ADMIN_PASSWORD) {
+      return NextResponse.json(
+        { error: "Server misconfiguration: ADMIN_PASSWORD is missing" },
+        { status: 500 },
+      );
+    }
+
+    if (!password || password !== process.env.ADMIN_PASSWORD) {
+      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set("admin_session", process.env.ADMIN_PASSWORD, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    });
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
+  }
+}

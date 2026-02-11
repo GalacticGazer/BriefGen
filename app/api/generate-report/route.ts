@@ -1,0 +1,133 @@
+import { NextResponse } from "next/server";
+import { AI_CONFIG } from "@/lib/config";
+import { sendEmail } from "@/lib/email";
+import { reportDeliveryEmail } from "@/lib/email-templates";
+import { generateReport } from "@/lib/openai";
+import { generatePDF } from "@/lib/pdf";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+export async function POST(request: Request) {
+  let reportId: string | null = null;
+
+  try {
+    const authHeader = request.headers.get("Authorization");
+    const internalApiSecret = process.env.INTERNAL_API_SECRET;
+
+    if (internalApiSecret && authHeader !== `Bearer ${internalApiSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await request.json()) as { reportId?: string };
+    reportId = body.reportId ?? null;
+
+    if (!reportId) {
+      return NextResponse.json({ error: "Missing reportId" }, { status: 400 });
+    }
+
+    const { data: report, error: fetchError } = await supabaseAdmin
+      .from("reports")
+      .select("*")
+      .eq("id", reportId)
+      .single();
+
+    if (fetchError || !report) {
+      return NextResponse.json({ error: "Report not found" }, { status: 404 });
+    }
+
+    if (report.payment_status !== "paid") {
+      return NextResponse.json({ error: "Report not paid" }, { status: 400 });
+    }
+
+    if (report.report_status === "completed") {
+      return NextResponse.json({ error: "Report already generated" }, { status: 400 });
+    }
+
+    if (report.report_type !== "standard") {
+      return NextResponse.json(
+        { error: "Only standard reports are auto-generated" },
+        { status: 400 },
+      );
+    }
+
+    await supabaseAdmin.from("reports").update({ report_status: "generating" }).eq("id", reportId);
+
+    const { content, usage } = await generateReport(report.category, report.question);
+
+    if (!content || content.length < 100) {
+      throw new Error("AI returned insufficient content");
+    }
+
+    const pdfBuffer = await generatePDF(content, report.question, report.category);
+
+    const pdfFileName = `${reportId}.pdf`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("reports")
+      .upload(pdfFileName, pdfBuffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(`PDF upload failed: ${uploadError.message}`);
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("reports").getPublicUrl(pdfFileName);
+
+    const pdfUrl = urlData.publicUrl;
+
+    await supabaseAdmin
+      .from("reports")
+      .update({
+        report_status: "completed",
+        report_content: content,
+        report_pdf_url: pdfUrl,
+        delivered_at: new Date().toISOString(),
+        operator_notes: `Model: ${AI_CONFIG.model} | Tokens: ${usage.inputTokens}in/${usage.outputTokens}out | Cost: $${usage.estimatedCost}`,
+      })
+      .eq("id", reportId);
+
+    // Delivery email failures should not fail report generation.
+    try {
+      const emailContent = reportDeliveryEmail(report.question, pdfUrl);
+      await sendEmail({
+        to: report.customer_email,
+        subject: emailContent.subject,
+        html: emailContent.html,
+      });
+
+      await supabaseAdmin.from("reports").update({ email_sent: true }).eq("id", reportId);
+    } catch (emailError) {
+      console.error("Email delivery failed:", emailError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      pdfUrl,
+      usage,
+    });
+  } catch (error) {
+    console.error("Report generation failed:", error);
+
+    if (reportId) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+
+      await supabaseAdmin
+        .from("reports")
+        .update({
+          report_status: "failed",
+          operator_notes: `Error: ${message}`,
+        })
+        .eq("id", reportId);
+    }
+
+    const details = error instanceof Error ? error.message : "Unknown error";
+
+    return NextResponse.json(
+      { error: "Report generation failed", details },
+      { status: 500 },
+    );
+  }
+}
