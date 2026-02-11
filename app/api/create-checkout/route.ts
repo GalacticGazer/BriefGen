@@ -16,8 +16,9 @@ type RequestBody = {
 export async function POST(request: Request) {
   try {
     const { category, question, email, reportType } = (await request.json()) as RequestBody;
+    const trimmedQuestion = question?.trim() ?? "";
 
-    if (!category || !question || !email || !reportType) {
+    if (!category || !email || !reportType || !trimmedQuestion) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
 
-    if (question.length > 2000) {
+    if (trimmedQuestion.length > 2000) {
       return NextResponse.json(
         { error: "Question too long (max 2000 characters)" },
         { status: 400 },
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       .insert({
         customer_email: email.trim(),
         category,
-        question: question.trim(),
+        question: trimmedQuestion,
         report_type: reportType,
         amount_cents: amountCents,
         payment_status: "pending",
@@ -68,7 +69,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create report record" }, { status: 500 });
     }
 
-    const trimmedQuestion = question.trim();
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       customer_email: email.trim(),

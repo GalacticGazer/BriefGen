@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+const GENERATING_STALE_MS = 5 * 60 * 1000;
 
 export async function POST(request: Request) {
   let reportId: string | null = null;
@@ -46,7 +47,33 @@ export async function POST(request: Request) {
     }
 
     if (report.report_status === "generating") {
-      return NextResponse.json({ error: "Report is already generating" }, { status: 409 });
+      const generationStartedAt = getGenerationStartedAt(report.operator_notes, report.created_at);
+      const isStale = Date.now() - generationStartedAt.getTime() > GENERATING_STALE_MS;
+
+      if (!isStale) {
+        return NextResponse.json({ error: "Report is already generating" }, { status: 409 });
+      }
+
+      const { data: recoveredRows, error: recoverError } = await supabaseAdmin
+        .from("reports")
+        .update({
+          report_status: "failed",
+          operator_notes: `Recovered stale generation lock at ${new Date().toISOString()}`,
+        })
+        .eq("id", reportId)
+        .eq("report_status", "generating")
+        .select("id");
+
+      if (recoverError) {
+        throw new Error(`Failed to recover stale generation lock: ${recoverError.message}`);
+      }
+
+      if (!recoveredRows || recoveredRows.length === 0) {
+        return NextResponse.json(
+          { error: "Report generation state changed; retry request" },
+          { status: 409 },
+        );
+      }
     }
 
     if (report.report_type !== "standard") {
@@ -58,7 +85,10 @@ export async function POST(request: Request) {
 
     const { data: lockRows, error: lockError } = await supabaseAdmin
       .from("reports")
-      .update({ report_status: "generating" })
+      .update({
+        report_status: "generating",
+        operator_notes: `generation_started_at:${new Date().toISOString()}`,
+      })
       .eq("id", reportId)
       .in("report_status", ["pending", "failed"])
       .select("id");
@@ -156,4 +186,25 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+function getGenerationStartedAt(operatorNotes: unknown, createdAt: unknown): Date {
+  if (typeof operatorNotes === "string") {
+    const match = operatorNotes.match(/generation_started_at:([^\s]+)/);
+    if (match?.[1]) {
+      const parsed = new Date(match[1]);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  }
+
+  if (typeof createdAt === "string") {
+    const created = new Date(createdAt);
+    if (!Number.isNaN(created.getTime())) {
+      return created;
+    }
+  }
+
+  return new Date(0);
 }

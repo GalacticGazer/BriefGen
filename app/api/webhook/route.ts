@@ -221,13 +221,43 @@ async function triggerStandardReportGeneration(
       const payload = (await triggerResponse
         .json()
         .catch(() => ({ error: null }))) as { error?: string | null };
+      const errorMessage = payload.error ?? "";
       console.error(
         "Failed to trigger report generation:",
         triggerResponse.status,
-        payload.error ?? "",
+        errorMessage,
       );
+
+      const inFlightConflict =
+        triggerResponse.status === 409 &&
+        (errorMessage === "Report is already generating" ||
+          errorMessage === "Report generation already in progress or unavailable");
+
+      if (!inFlightConflict) {
+        await markGenerationTriggerFailed(
+          reportId,
+          `Trigger failed (${triggerResponse.status}): ${errorMessage || "Unknown error"}`,
+        );
+      }
     }
   } catch (error) {
     console.error("Failed to trigger report generation:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    await markGenerationTriggerFailed(reportId, `Trigger request error: ${errorMessage}`);
+  }
+}
+
+async function markGenerationTriggerFailed(reportId: string, reason: string) {
+  const { error } = await supabaseAdmin
+    .from("reports")
+    .update({
+      report_status: "failed",
+      operator_notes: `Generation trigger failed: ${reason}`,
+    })
+    .eq("id", reportId)
+    .eq("report_status", "pending");
+
+  if (error) {
+    console.error("Failed to persist generation trigger failure:", error);
   }
 }
