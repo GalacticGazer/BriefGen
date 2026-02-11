@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BriefGen.ai (Chunks 1-5)
 
-## Getting Started
+BriefGen.ai is a Next.js App Router project with Tailwind CSS and TypeScript.
+Chunks 1-5 include homepage UI, Stripe checkout/webhook flow, AI report generation, PDF creation, email delivery, and an admin dashboard for manual premium fulfillment.
 
-First, run the development server:
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Implemented routes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/` Homepage with category selection + checkout actions
+- `/success?report_id=...` Polling status screen
+- `/report/[id]` Placeholder report page
+- `/api/create-checkout` Creates report + Stripe Checkout session
+- `/api/webhook` Handles Stripe events and triggers generation
+- `/api/generate-report` Generates report content + PDF + storage upload
+- `/api/report-status?id=...` Returns `status`, `pdfUrl`, `reportType` for polling
+- Delivery emails are sent through Resend after report generation
+- `/admin` Password-protected operator dashboard
+- `/api/admin/login` Sets admin session cookie
+- `/api/admin/stats` Dashboard metrics
+- `/api/admin/reports` Filterable report listing for admin
+- `/api/admin/deliver` Manual premium fulfillment + PDF + delivery email
 
-## Learn More
+## Supabase setup
 
-To learn more about Next.js, take a look at the following resources:
+1. Create project and run `/Users/faz/briefgen/supabase/schema.sql`.
+2. Create public Storage bucket named `reports`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Required environment variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Use `/Users/faz/briefgen/.env.local`:
 
-## Deploy on Vercel
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_KEY`
+- `STRIPE_SECRET_KEY`
+- `NEXT_PUBLIC_STRIPE_PUBLIC_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_URL`
+- `INTERNAL_API_SECRET`
+- `OPENAI_API_KEY`
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL` (recommended; e.g. `BriefGen.ai <reports@briefgen.ai>`)
+- `ADMIN_PASSWORD`
+- `OPERATOR_EMAIL`
+- `NEXT_PUBLIC_SUPPORT_EMAIL`
+- Optional: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## AI model switch
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Edit one line in `/Users/faz/briefgen/lib/config.ts`:
+
+- `AI_CONFIG.model`
+
+## Stripe webhook local testing
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhook
+```
+
+## Validation
+
+```bash
+npm run lint
+npm run build
+```
