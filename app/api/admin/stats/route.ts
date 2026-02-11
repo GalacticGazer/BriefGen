@@ -17,9 +17,9 @@ export async function GET() {
   }
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const todayStartTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weekStartTs = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).getTime();
+  const monthStartTs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
   const { data: allReports, error } = await supabaseAdmin
     .from("reports")
@@ -32,10 +32,14 @@ export async function GET() {
 
   const reports: StatReport[] = (allReports ?? []) as StatReport[];
   const sum = (arr: StatReport[]) => arr.reduce((s, r) => s + r.amount_cents, 0) / 100;
+  const getCreatedAtTs = (report: StatReport): number => {
+    const parsed = Date.parse(report.created_at);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
 
-  const todayReports = reports.filter((r) => r.created_at >= todayStart);
-  const weekReports = reports.filter((r) => r.created_at >= weekStart);
-  const monthReports = reports.filter((r) => r.created_at >= monthStart);
+  const todayReports = reports.filter((r) => getCreatedAtTs(r) >= todayStartTs);
+  const weekReports = reports.filter((r) => getCreatedAtTs(r) >= weekStartTs);
+  const monthReports = reports.filter((r) => getCreatedAtTs(r) >= monthStartTs);
   const pendingPremium = reports.filter(
     (r) => r.report_type === "premium" && r.report_status === "awaiting_manual",
   ).length;

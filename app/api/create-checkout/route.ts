@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createReportAccessToken, getReportAccessSecretError } from "@/lib/report-access";
 import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -40,6 +41,13 @@ export async function POST(request: Request) {
     if (!process.env.NEXT_PUBLIC_URL) {
       return NextResponse.json(
         { error: "Server misconfiguration: NEXT_PUBLIC_URL is missing" },
+        { status: 500 },
+      );
+    }
+
+    if (!process.env.INTERNAL_API_SECRET) {
+      return NextResponse.json(
+        { error: getReportAccessSecretError() },
         { status: 500 },
       );
     }
@@ -109,7 +117,17 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ url: session.url });
+    const reportAccessToken = createReportAccessToken(report.id, email.trim());
+    const response = NextResponse.json({ url: session.url });
+    response.cookies.set(`briefgen_report_access_${report.id}`, reportAccessToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("Checkout error:", error);
     return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });

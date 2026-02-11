@@ -17,7 +17,14 @@ export async function POST(request: Request) {
     const authHeader = request.headers.get("Authorization");
     const internalApiSecret = process.env.INTERNAL_API_SECRET;
 
-    if (internalApiSecret && authHeader !== `Bearer ${internalApiSecret}`) {
+    if (!internalApiSecret) {
+      return NextResponse.json(
+        { error: "Server misconfiguration: INTERNAL_API_SECRET is missing" },
+        { status: 500 },
+      );
+    }
+
+    if (authHeader !== `Bearer ${internalApiSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
