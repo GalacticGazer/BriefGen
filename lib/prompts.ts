@@ -49,7 +49,11 @@ FORMATTING RULES:
 - Today's date is ${currentDate()}. Use current information.
 - Do NOT include a report title — the system adds this.
 - Do NOT include any preamble like "Here is your report..." — start directly with the
-  Executive Summary.`;
+  Executive Summary.
+- Do NOT end with any request for additional user input (for example "If you share..." or
+  "If you provide...").
+- Do NOT offer follow-up tailoring, another pass, or next-conversation prompts.
+- End the report cleanly after Sources & Further Reading.`;
 }
 
 const CATEGORY_PROMPTS: Record<string, string> = {

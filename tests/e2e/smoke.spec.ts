@@ -5,7 +5,7 @@ test("homepage renders the primary hero", async ({ page }) => {
 
   await expect(
     page.getByRole("heading", {
-      name: "Analyst-grade reports on demand.",
+      name: /Professional research for \$4\.99/i,
     }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "BriefGen.ai", exact: true })).toBeVisible();

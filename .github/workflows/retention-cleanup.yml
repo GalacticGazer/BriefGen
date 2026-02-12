@@ -1,0 +1,24 @@
+name: Retention Cleanup
+
+on:
+  schedule:
+    - cron: "15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger retention cleanup endpoint
+        env:
+          RETENTION_CLEANUP_URL: ${{ secrets.RETENTION_CLEANUP_URL }}
+          RETENTION_CLEANUP_TOKEN: ${{ secrets.RETENTION_CLEANUP_TOKEN }}
+        run: |
+          if [ -z "$RETENTION_CLEANUP_URL" ] || [ -z "$RETENTION_CLEANUP_TOKEN" ]; then
+            echo "Missing RETENTION_CLEANUP_URL or RETENTION_CLEANUP_TOKEN; skipping cleanup run."
+            exit 0
+          fi
+
+          curl --fail-with-body --silent --show-error \
+            -X GET "$RETENTION_CLEANUP_URL" \
+            -H "Authorization: Bearer $RETENTION_CLEANUP_TOKEN"
