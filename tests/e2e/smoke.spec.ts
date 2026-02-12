@@ -8,7 +8,7 @@ test("homepage renders the primary hero", async ({ page }) => {
       name: "Analyst-grade reports on demand.",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "BriefGen.ai" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "BriefGen.ai", exact: true })).toBeVisible();
 });
 
 test("admin page loads", async ({ page }) => {

@@ -53,32 +53,34 @@ export default function Hero() {
               </span>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-              <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-[0.45fr_1fr]">
-                <aside className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
-                  <p className="font-semibold uppercase tracking-wide text-gray-700">Contents</p>
-                  <ul className="mt-2 space-y-2 leading-5">
-                    <li>Executive Summary</li>
-                    <li>Background</li>
-                    <li>Analysis</li>
-                    <li>Opportunities & Risks</li>
-                    <li>Key Takeaways</li>
-                    <li>Sources</li>
-                  </ul>
+            <div className="rounded-2xl border border-gray-200 bg-gray-900 p-3 sm:p-4">
+              <p className="mb-3 text-xs font-medium text-gray-300">PDF Preview • Page 1 of 8</p>
+              <div className="grid gap-3 sm:grid-cols-[0.24fr_1fr]">
+                <aside className="hidden rounded-xl border border-gray-700 bg-gray-800 p-2 sm:block">
+                  <div className="space-y-2">
+                    {["Cover", "ToC", "Exec Summary"].map((item) => (
+                      <div key={item} className="rounded-lg border border-gray-600 bg-gray-700/70 p-2">
+                        <p className="text-[10px] font-medium text-gray-200">{item}</p>
+                        <div className="mt-1 h-10 rounded bg-gray-600/80" />
+                      </div>
+                    ))}
+                  </div>
                 </aside>
 
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Executive Summary
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-gray-700">
-                    <strong>Bottom line:</strong> Teams evaluating enterprise AI tooling should
-                    prioritize workflow integration and measured time savings before model breadth.
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-gray-600">
-                    Organizations that scope pilots to one business process and one stakeholder team
-                    tend to validate ROI faster and avoid rollout friction.
-                  </p>
+                <div className="rounded-xl border border-gray-700 bg-gray-800 p-3">
+                  <div className="rounded-lg border border-gray-300 bg-[#fcfcf9] px-6 py-5 text-gray-700 shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Executive Summary
+                    </p>
+                    <p className="mt-3 text-sm leading-6">
+                      <strong>Bottom line:</strong> Teams evaluating enterprise AI tooling should
+                      prioritize workflow integration and measured time savings before model breadth.
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-gray-600">
+                      Organizations that scope pilots to one business process and one stakeholder team
+                      tend to validate ROI faster and avoid rollout friction.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

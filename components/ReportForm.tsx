@@ -221,12 +221,19 @@ export default function ReportForm() {
                       type="button"
                       onClick={() => setCategoryId(category.id)}
                       disabled={isLoading}
-                      className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition-all ${
+                      className={`relative rounded-2xl border bg-white p-5 text-left shadow-sm transition-all ${
                         isSelected
                           ? "border-brand-500 bg-brand-50/60"
                           : "border-gray-200 hover:-translate-y-0.5 hover:border-brand-300"
                       } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50`}
                     >
+                      {isSelected && (
+                        <span className="absolute top-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-500 text-white">
+                          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                            <path d="m4 10 4 4 8-8" />
+                          </svg>
+                        </span>
+                      )}
                       <div className="flex items-start gap-3">
                         <CategoryIcon id={category.id} />
                         <div>
@@ -329,7 +336,7 @@ export default function ReportForm() {
           <aside className="rounded-2xl border border-gray-200 bg-gray-50 p-6 shadow-sm">
             <p className="text-sm font-medium text-gray-700">You&apos;ll review your prompt before paying.</p>
             <p className="mt-2 text-xs leading-5 text-gray-500">
-              No account required. We store report inputs and generated outputs only to process,
+              No account required. We retain your prompt and report only as needed to generate,
               deliver, and provide download access.
             </p>
 
@@ -372,9 +379,10 @@ export default function ReportForm() {
                 <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">$14.99</p>
                 <p className="mt-1 text-sm text-gray-500">Delivered within 24 hours</p>
                 <ul className="mt-3 space-y-1 text-sm leading-6 text-gray-600">
-                  <li>Scenario analysis with clearer tradeoff framing</li>
-                  <li>Deeper competitive landscape depth</li>
-                  <li>Sharper recommendation and prioritization path</li>
+                  <li>Scenario analysis with explicit tradeoffs</li>
+                  <li>Competitive landscape + decision criteria</li>
+                  <li>Prioritized recommendation plan (what to do first)</li>
+                  <li>1-page decision brief at the top</li>
                 </ul>
                 <button
                   type="button"
@@ -388,7 +396,19 @@ export default function ReportForm() {
               </article>
             </div>
 
-            <p className="mt-6 text-xs font-medium text-gray-600">Not satisfied? We&apos;ll fix it.</p>
+            <p className="mt-5 text-xs font-medium text-gray-600">
+              Secure checkout via Stripe • No account required • Delivered by email + PDF
+            </p>
+            <p className="mt-4 text-xs font-medium text-gray-600">Not satisfied? We&apos;ll fix it.</p>
+            <p className="mt-2 text-xs text-gray-500">
+              Questions? Email{" "}
+              <a
+                href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@briefgen.ai"}`}
+                className="font-medium text-brand-600 hover:text-brand-700"
+              >
+                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@briefgen.ai"}
+              </a>
+            </p>
           </aside>
         </form>
       </div>

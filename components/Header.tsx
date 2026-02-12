@@ -13,7 +13,7 @@ const navLinks: NavLink[] = [
   { label: "How It Works", href: "#how-it-works", sectionId: "how-it-works", trackActive: true },
   { label: "Sample", href: "#sample-report", sectionId: "sample-report", trackActive: true },
   { label: "Pricing", href: "#report-form", sectionId: "report-form", trackActive: true },
-  { label: "Generate", href: "#report-form", sectionId: "report-form", trackActive: false },
+  { label: "Generate Report", href: "#report-form", sectionId: "report-form", trackActive: false },
 ];
 
 export default function Header() {
