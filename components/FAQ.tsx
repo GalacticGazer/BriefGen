@@ -28,12 +28,12 @@ const faqs = [
 
 export default function FAQ() {
   return (
-    <section className="px-4 py-16 sm:px-6 lg:px-8">
+    <section className="px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
       <div className="mx-auto max-w-6xl">
         <h2 className="max-w-3xl text-3xl font-semibold tracking-tight text-gray-900">FAQ</h2>
         <div className="mt-8 max-w-4xl space-y-4">
           {faqs.map((faq) => (
-            <article key={faq.question} className="rounded-xl border border-gray-200 p-5">
+            <article key={faq.question} className="rounded-2xl border border-gray-200 p-6">
               <h3 className="text-base font-semibold text-gray-900">{faq.question}</h3>
               <p className="mt-2 text-sm leading-6 text-gray-600">{faq.answer}</p>
             </article>

@@ -24,17 +24,20 @@ const samplePages = [
 
 export default function SampleReport() {
   return (
-    <section id="sample-report" className="border-y border-gray-200 bg-gray-50 px-4 py-16 sm:px-6 lg:px-8">
+    <section
+      id="sample-report"
+      className="border-y border-gray-200 bg-gray-50 px-4 py-20 sm:px-6 lg:px-8 lg:py-24"
+    >
       <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
         <div>
           <h2 className="text-3xl font-semibold tracking-tight text-gray-900">Sample Report</h2>
-          <p className="mt-4 max-w-xl text-gray-600">
+          <p className="mt-4 max-w-xl text-lg leading-8 text-gray-600">
             Review the structure before you pay. Every report follows a clear consulting-style
             format that is easy to skim and easy to share.
           </p>
           <ul className="mt-6 space-y-3 text-sm text-gray-700">
             {sampleSections.map((section) => (
-              <li key={section} className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+              <li key={section} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
                 {section}
               </li>
             ))}
@@ -45,14 +48,14 @@ export default function SampleReport() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
               Scrollable preview
             </p>
-            <div className="mt-3 h-96 space-y-3 overflow-y-auto rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mt-3 h-96 space-y-3 overflow-y-auto rounded-xl border border-gray-200 bg-white p-4">
               {samplePages.map((page) => (
-                <article key={page.title} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                <article key={page.title} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
                   <h3 className="text-base font-semibold text-gray-900">{page.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-gray-700">{page.body}</p>
                 </article>
