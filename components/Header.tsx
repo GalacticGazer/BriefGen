@@ -1,27 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-type NavLink = {
-  label: string;
-  href: string;
-  sectionId: string;
-  trackActive?: boolean;
-};
-
-const navLinks: NavLink[] = [
-  { label: "How It Works", href: "#how-it-works", sectionId: "how-it-works", trackActive: true },
-  { label: "Sample", href: "#sample-report", sectionId: "sample-report", trackActive: true },
-  { label: "Pricing", href: "#report-form", sectionId: "report-form", trackActive: true },
-  { label: "Generate Report", href: "#report-form", sectionId: "report-form", trackActive: false },
-];
+import { useEffect, useMemo, useState } from "react";
+import { headerContent, navLinks } from "@/lib/landing-content";
 
 export default function Header() {
   const [activeSection, setActiveSection] = useState<string>("");
 
+  const trackableLinks = useMemo(() => navLinks.filter((link) => link.trackActive), []);
+
   useEffect(() => {
-    const sections = ["how-it-works", "sample-report", "report-form"]
-      .map((id) => document.getElementById(id))
+    const sections = trackableLinks
+      .map((link) => document.getElementById(link.sectionId))
       .filter((el): el is HTMLElement => el instanceof HTMLElement);
 
     if (sections.length === 0) {
@@ -30,47 +19,54 @@ export default function Header() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = entries
+        const visibleEntries = entries
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
 
-        if (visible[0]) {
-          setActiveSection(visible[0].target.id);
+        if (visibleEntries[0]) {
+          setActiveSection(visibleEntries[0].target.id);
         }
       },
       {
         root: null,
-        rootMargin: "-120px 0px -45% 0px",
-        threshold: [0.2, 0.35, 0.55],
+        rootMargin: "-108px 0px -46% 0px",
+        threshold: [0.25, 0.45, 0.6],
       },
     );
 
     sections.forEach((section) => observer.observe(section));
 
     return () => observer.disconnect();
-  }, []);
+  }, [trackableLinks]);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-[var(--border-subtle)] bg-[color-mix(in_oklab,var(--bg-surface)_82%,transparent)] backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <a href="#" className="text-sm font-semibold tracking-tight text-gray-900">
-          BriefGen.ai
+        <a
+          href="#"
+          className="text-sm font-bold tracking-tight text-[var(--text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]"
+        >
+          {headerContent.brand}
         </a>
-        <nav className="hidden items-center gap-6 text-sm sm:flex">
+
+        <nav className="hidden items-center gap-6 text-sm sm:flex" aria-label="Primary">
           {navLinks.map((link) => {
-            const isActive = Boolean(link.trackActive) && activeSection === link.sectionId;
+            const isActive = link.trackActive && activeSection === link.sectionId;
 
             return (
               <a
                 key={`${link.label}-${link.href}`}
                 href={link.href}
-                className={`relative pb-1 transition-colors ${
-                  isActive ? "text-brand-600" : "text-gray-600 hover:text-brand-500"
+                className={`relative pb-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
+                  isActive
+                    ? "text-[var(--accent)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-strong)]"
                 }`}
+                aria-current={isActive ? "page" : undefined}
               >
                 {link.label}
                 <span
-                  className={`absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-brand-500 transition-opacity ${
+                  className={`absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-[var(--accent)] transition-opacity ${
                     isActive ? "opacity-100" : "opacity-0"
                   }`}
                 />
@@ -78,11 +74,12 @@ export default function Header() {
             );
           })}
         </nav>
+
         <a
           href="#report-form"
-          className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
+          className="inline-flex items-center justify-center rounded-xl border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_26px_-12px_rgba(26,86,219,0.7)] transition-all hover:-translate-y-0.5 hover:bg-[color-mix(in_oklab,var(--accent)_92%,black)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)]"
         >
-          Generate Report
+          {headerContent.primaryCta}
         </a>
       </div>
     </header>

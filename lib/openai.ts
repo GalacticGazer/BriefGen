@@ -30,7 +30,8 @@ export async function generateReport(
     temperature: AI_CONFIG.temperature,
   });
 
-  const content = response.choices[0]?.message?.content ?? "";
+  const rawContent = response.choices[0]?.message?.content ?? "";
+  const content = stripTrailingFollowUpSolicitations(rawContent);
   const inputTokens = response.usage?.prompt_tokens ?? 0;
   const outputTokens = response.usage?.completion_tokens ?? 0;
 
@@ -47,4 +48,25 @@ export async function generateReport(
       estimatedCost: Math.round((inputCost + outputCost) * 10000) / 10000,
     },
   };
+}
+
+function stripTrailingFollowUpSolicitations(content: string): string {
+  const solicitationPattern =
+    /(?:^|\s)(if you(?:'d)?\s+(?:share|provide|want|need|can)|share\s+your).*?\bi can\b/i;
+
+  const paragraphs = content
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  while (paragraphs.length > 0) {
+    const lastParagraph = paragraphs[paragraphs.length - 1];
+    if (!solicitationPattern.test(lastParagraph)) {
+      break;
+    }
+
+    paragraphs.pop();
+  }
+
+  return paragraphs.join("\n\n").trim();
 }

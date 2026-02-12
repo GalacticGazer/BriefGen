@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-inter), sans-serif;
+  --font-sans: var(--font-manrope), sans-serif;
 
   --color-brand-50: #eef4ff;
   --color-brand-100: #d9e7ff;
@@ -15,10 +15,62 @@
   --color-brand-900: #0d235b;
 }
 
+:root {
+  --bg-page: #060d1c;
+  --bg-surface: #0b1528;
+  --bg-surface-muted: #0f1d34;
+  --border-subtle: #1f3657;
+  --text-strong: #e7eefc;
+  --text-muted: #a3b4d3;
+  --accent: #4b8dff;
+  --accent-muted: #152746;
+  --success: #36c18d;
+  --warn: #f4b65e;
+  --ring: #9fc0ff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-page: #f6f8fc;
+    --bg-surface: #ffffff;
+    --bg-surface-muted: #f4f7ff;
+    --border-subtle: #d9e1ef;
+    --text-strong: #0f172a;
+    --text-muted: #52607a;
+    --accent: #1a56db;
+    --accent-muted: #e6efff;
+    --success: #0f9f6e;
+    --warn: #b45309;
+    --ring: #3d73e0;
+  }
+}
+
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-white text-gray-900 antialiased;
+  background-color: var(--bg-page);
+  background-image:
+    radial-gradient(circle at 8% 10%, rgba(75, 141, 255, 0.24), transparent 35%),
+    radial-gradient(circle at 91% 5%, rgba(75, 141, 255, 0.16), transparent 29%),
+    linear-gradient(180deg, rgba(8, 14, 28, 0.95), rgba(8, 14, 28, 0.92));
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background-image:
+      radial-gradient(circle at 9% 11%, rgba(26, 86, 219, 0.14), transparent 34%),
+      radial-gradient(circle at 93% 4%, rgba(26, 86, 219, 0.08), transparent 29%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+  }
+}
+
+::selection {
+  background: rgba(26, 86, 219, 0.2);
+  color: var(--text-strong);
 }

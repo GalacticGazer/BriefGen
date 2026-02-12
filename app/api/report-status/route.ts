@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getReportAccessSecretError, verifyReportAccessToken } from "@/lib/report-access";
+import { runRetentionCleanupIfDue } from "@/lib/retention";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -47,6 +48,8 @@ export async function GET(request: Request) {
   if (!hasAccess) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
+
+  await runRetentionCleanupIfDue();
 
   return NextResponse.json({
     status: report.report_status,

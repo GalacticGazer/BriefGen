@@ -4,6 +4,7 @@ import {
   getReportAccessSecretError,
   REPORT_ACCESS_MAX_AGE_SECONDS,
 } from "@/lib/report-access";
+import { runRetentionCleanupIfDue } from "@/lib/retention";
 import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -20,6 +21,8 @@ type RequestBody = {
 
 export async function POST(request: Request) {
   try {
+    await runRetentionCleanupIfDue();
+
     const { category, question, email, reportType } = (await request.json()) as RequestBody;
     const trimmedQuestion = question?.trim() ?? "";
 

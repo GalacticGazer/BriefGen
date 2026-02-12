@@ -6,10 +6,12 @@ import HowItWorks from "@/components/HowItWorks";
 import SampleReport from "@/components/SampleReport";
 import ReportForm from "@/components/ReportForm";
 import WhatYouGet from "@/components/WhatYouGet";
+import { faqJsonLd } from "@/lib/landing-content";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white text-gray-900">
+    <div className="min-h-screen text-[var(--text-strong)]">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <Header />
       <main>
         <Hero />
