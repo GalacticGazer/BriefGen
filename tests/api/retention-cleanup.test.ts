@@ -67,4 +67,21 @@ describe("GET /api/retention-cleanup", () => {
     expect(response.status).toBe(200);
     expect(runRetentionCleanupIfDue).toHaveBeenCalledTimes(1);
   });
+
+  it("returns non-2xx when cleanup fails", async () => {
+    process.env.CRON_SECRET = "cron-secret";
+    runRetentionCleanupIfDue.mockRejectedValueOnce(new Error("supabase unavailable"));
+
+    const { GET } = await import("@/app/api/retention-cleanup/route");
+    const response = await GET(
+      new Request("http://localhost/api/retention-cleanup", {
+        headers: { Authorization: "Bearer cron-secret" },
+      }),
+    );
+    const payload = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toBe("Retention cleanup failed");
+    expect(runRetentionCleanupIfDue).toHaveBeenCalledTimes(1);
+  });
 });

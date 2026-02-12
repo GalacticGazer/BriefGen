@@ -52,7 +52,7 @@ export async function generateReport(
 
 export function stripTrailingFollowUpSolicitations(content: string): string {
   const solicitationPattern =
-    /^(?:if\s+you(?:'d)?\s+(?:share|provide|send|give|tell)\b|share\s+your\b).{0,500}\b(?:i|we)\s+can\s+(?:tailor|customi[sz]e|translate|turn(?:\s+this)?\s+into|build|create|prepare|map|draft)\b/i;
+    /^(?:if\s+you(?:'d)?\s+(?:share|provide|send|give|tell(?:\s+me)?)\s+(?:your|the\s+following|more|additional)\b|share\s+your\b).{0,500}\bi\s+can\s+(?:tailor|customi[sz]e|translate|turn(?:\s+this)?\s+into|map(?:\s+this)?\s+to|draft)\b/i;
 
   const paragraphs = content
     .split(/\n{2,}/)

@@ -9,6 +9,18 @@ type RetentionCleanupOptions = {
   protectedReportIds?: string[];
 };
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 function getCutoffIsoDate() {
   const now = Date.now();
   return new Date(now - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -20,52 +32,47 @@ export async function runRetentionCleanupIfDue(options: RetentionCleanupOptions 
     return;
   }
 
-  try {
-    const cutoffIso = getCutoffIsoDate();
+  const cutoffIso = getCutoffIsoDate();
 
-    const { data: expiredReports, error: selectError } = await supabaseAdmin
-      .from("reports")
-      .select("id")
-      .lt("created_at", cutoffIso)
-      .limit(MAX_REPORTS_PER_RUN);
+  const { data: expiredReports, error: selectError } = await supabaseAdmin
+    .from("reports")
+    .select("id")
+    .lt("created_at", cutoffIso)
+    .limit(MAX_REPORTS_PER_RUN);
 
-    if (selectError) {
-      console.error("Retention cleanup select failed:", selectError);
-      return;
-    }
+  if (selectError) {
+    throw new Error(`Retention cleanup select failed: ${getErrorMessage(selectError)}`);
+  }
 
-    if (expiredReports && expiredReports.length > 0) {
-      const protectedReportIds = new Set(options.protectedReportIds?.filter(Boolean) ?? []);
-      const reportIds = expiredReports
-        .map((report) => report.id)
-        .filter((reportId) => !protectedReportIds.has(reportId));
+  if (expiredReports && expiredReports.length > 0) {
+    const protectedReportIds = new Set(options.protectedReportIds?.filter(Boolean) ?? []);
+    const reportIds = expiredReports
+      .map((report) => report.id)
+      .filter((reportId) => !protectedReportIds.has(reportId));
 
-      if (reportIds.length > 0) {
-        const storagePaths = reportIds.map((id) => `${id}.pdf`);
+    if (reportIds.length > 0) {
+      const storagePaths = reportIds.map((id) => `${id}.pdf`);
 
-        const { error: removeStorageError } = await supabaseAdmin.storage
-          .from("reports")
-          .remove(storagePaths);
+      const { error: removeStorageError } = await supabaseAdmin.storage
+        .from("reports")
+        .remove(storagePaths);
 
-        // Removing a non-existing file is acceptable; continue record cleanup.
-        if (removeStorageError) {
-          console.error("Retention cleanup storage remove warning:", removeStorageError);
-        }
+      if (removeStorageError) {
+        throw new Error(
+          `Retention cleanup storage remove failed: ${getErrorMessage(removeStorageError)}`,
+        );
+      }
 
-        const { error: deleteError } = await supabaseAdmin
-          .from("reports")
-          .delete()
-          .in("id", reportIds);
+      const { error: deleteError } = await supabaseAdmin
+        .from("reports")
+        .delete()
+        .in("id", reportIds);
 
-        if (deleteError) {
-          console.error("Retention cleanup delete failed:", deleteError);
-          return;
-        }
+      if (deleteError) {
+        throw new Error(`Retention cleanup delete failed: ${getErrorMessage(deleteError)}`);
       }
     }
-
-    lastCleanupAt = now;
-  } catch (error) {
-    console.error("Retention cleanup failed:", error);
   }
+
+  lastCleanupAt = now;
 }

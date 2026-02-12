@@ -26,10 +26,19 @@ describe("stripTrailingFollowUpSolicitations", () => {
     const content = [
       "Core analysis remains available.",
       "Share your current process map and I can customize this into a pilot checklist.",
-      "If you'd provide team size and timeline, we can prepare a phased execution plan.",
+      "If you'd provide your team size and timeline, I can draft a phased execution plan.",
     ].join("\n\n");
 
     expect(stripTrailingFollowUpSolicitations(content)).toBe("Core analysis remains available.");
+  });
+
+  it("keeps conditional recommendations that are not data-request follow-ups", () => {
+    const content = [
+      "Recommendation remains unchanged.",
+      "If you provide a dedicated implementation lead, we can build the migration runway in one quarter.",
+    ].join("\n\n");
+
+    expect(stripTrailingFollowUpSolicitations(content)).toBe(content);
   });
 
   it("keeps paragraphs that mention sharing without a follow-up offer", () => {

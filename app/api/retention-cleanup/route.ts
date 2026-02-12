@@ -25,6 +25,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await runRetentionCleanupIfDue();
-  return NextResponse.json({ ok: true });
+  try {
+    await runRetentionCleanupIfDue();
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Retention cleanup request failed:", error);
+    return NextResponse.json({ error: "Retention cleanup failed" }, { status: 503 });
+  }
 }

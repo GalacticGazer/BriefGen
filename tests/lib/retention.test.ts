@@ -62,8 +62,8 @@ describe("runRetentionCleanupIfDue", () => {
     vi.doMock("@/lib/supabase-admin", () => ({ supabaseAdmin: mocked.supabaseAdmin }));
     const { runRetentionCleanupIfDue } = await import("@/lib/retention");
 
-    await runRetentionCleanupIfDue();
-    await runRetentionCleanupIfDue();
+    await expect(runRetentionCleanupIfDue()).rejects.toThrow("Retention cleanup select failed");
+    await expect(runRetentionCleanupIfDue()).resolves.toBeUndefined();
 
     expect(mocked.spies.selectMock).toHaveBeenCalledTimes(2);
   });
@@ -96,8 +96,8 @@ describe("runRetentionCleanupIfDue", () => {
     vi.doMock("@/lib/supabase-admin", () => ({ supabaseAdmin: mocked.supabaseAdmin }));
     const { runRetentionCleanupIfDue } = await import("@/lib/retention");
 
-    await runRetentionCleanupIfDue();
-    await runRetentionCleanupIfDue();
+    await expect(runRetentionCleanupIfDue()).rejects.toThrow("Retention cleanup delete failed");
+    await expect(runRetentionCleanupIfDue()).rejects.toThrow("Retention cleanup delete failed");
 
     expect(mocked.spies.selectMock).toHaveBeenCalledTimes(2);
     expect(mocked.spies.deleteMock).toHaveBeenCalledTimes(2);
