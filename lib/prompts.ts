@@ -14,6 +14,7 @@ ANALYST VOICE AND SPECIFICITY:
 - Be specific and opinionated where the evidence supports it.
 - Avoid generic statements that could apply to any industry or topic.
 - Every paragraph must contain at least one specific fact, example, vendor name, metric, dollar figure, or actionable recommendation.
+- If reliable evidence is limited, explicitly state uncertainty and provide best-available directional guidance rather than inventing specifics.
 - If a paragraph only contains general statements, rewrite it to include concrete specifics or remove it entirely.
 
 QUESTION INTERPRETATION:
