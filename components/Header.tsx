@@ -13,17 +13,23 @@ export default function Header() {
             How It Works
           </a>
           <a
+            href="#sample-report"
+            className="text-gray-600 transition-colors hover:text-brand-500"
+          >
+            Sample Report
+          </a>
+          <a
             href="#report-form"
             className="text-gray-600 transition-colors hover:text-brand-500"
           >
-            Start Brief
+            Pricing
           </a>
         </nav>
         <a
           href="#report-form"
           className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
         >
-          Get Started
+          Generate Report
         </a>
       </div>
     </header>

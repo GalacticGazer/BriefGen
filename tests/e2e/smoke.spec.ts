@@ -5,7 +5,7 @@ test("homepage renders the primary hero", async ({ page }) => {
 
   await expect(
     page.getByRole("heading", {
-      name: "Turn raw notes into clear, client-ready briefs.",
+      name: "Your on-demand research analyst.",
     }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "BriefGen.ai" })).toBeVisible();

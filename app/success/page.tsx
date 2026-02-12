@@ -172,12 +172,29 @@ function SuccessContent() {
               Your report is ready!
             </h1>
             <p className="mt-3 text-gray-600">A copy was also sent to your email.</p>
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
+              <p className="font-medium">Save your PDF now.</p>
+              <p className="mt-1">
+                BriefGen does not have account dashboards yet, so this page is not your permanent
+                report library. Keep the downloaded file and the email copy.
+              </p>
+            </div>
             <a
               href={pdfUrl ?? `/report/${reportId}`}
               className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
             >
               Download Report
             </a>
+            {pdfUrl && (
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-brand-500 hover:text-brand-500"
+              >
+                Open PDF in New Tab
+              </a>
+            )}
           </section>
         )}
 
