@@ -6,8 +6,8 @@ export const AI_CONFIG = {
   // Max tokens for output (3,000-4,000 word report ~= 4,000-6,000 tokens)
   maxOutputTokens: 8000,
 
-  // Temperature: 0.7 = balanced. Lower = more factual, higher = more creative.
-  temperature: 0.7,
+  // Temperature: lower values increase consistency and reduce creative drift.
+  temperature: 0.45,
 
   // Cost tracking (update if pricing changes)
   costPerMillionInput: {
