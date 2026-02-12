@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import HowItWorks from "@/components/HowItWorks";
+import SampleReport from "@/components/SampleReport";
 import ReportForm from "@/components/ReportForm";
 import WhatYouGet from "@/components/WhatYouGet";
 
@@ -13,6 +14,7 @@ export default function Home() {
       <main>
         <Hero />
         <HowItWorks />
+        <SampleReport />
         <ReportForm />
         <WhatYouGet />
         <FAQ />
