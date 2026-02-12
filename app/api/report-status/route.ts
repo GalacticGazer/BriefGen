@@ -49,11 +49,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  await runRetentionCleanupIfDue();
-
-  return NextResponse.json({
+  const response = NextResponse.json({
     status: report.report_status,
     pdfUrl: report.report_pdf_url,
     reportType: report.report_type,
   });
+
+  // Never block status polling on retention work, and don't delete the current report in this request.
+  void runRetentionCleanupIfDue({ protectedReportIds: [reportId] });
+
+  return response;
 }
