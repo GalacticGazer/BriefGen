@@ -50,9 +50,9 @@ export async function generateReport(
   };
 }
 
-function stripTrailingFollowUpSolicitations(content: string): string {
+export function stripTrailingFollowUpSolicitations(content: string): string {
   const solicitationPattern =
-    /(?:^|\s)(if you(?:'d)?\s+(?:share|provide|want|need|can)|share\s+your).*?\bi can\b/i;
+    /^(?:if\s+you(?:'d)?\s+(?:share|provide|send|give|tell)\b|share\s+your\b).{0,500}\b(?:i|we)\s+can\s+(?:tailor|customi[sz]e|translate|turn(?:\s+this)?\s+into|build|create|prepare|map|draft)\b/i;
 
   const paragraphs = content
     .split(/\n{2,}/)

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getReportAccessSecretError, verifyReportAccessToken } from "@/lib/report-access";
-import { runRetentionCleanupIfDue } from "@/lib/retention";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -49,14 +48,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const response = NextResponse.json({
+  return NextResponse.json({
     status: report.report_status,
     pdfUrl: report.report_pdf_url,
     reportType: report.report_type,
   });
-
-  // Never block status polling on retention work, and don't delete the current report in this request.
-  void runRetentionCleanupIfDue({ protectedReportIds: [reportId] });
-
-  return response;
 }
