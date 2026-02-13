@@ -52,4 +52,47 @@ describe("sanitizeUploadedPdf", () => {
       height: 50,
     });
   });
+
+  it("removes ChatGPT header links on later pages too", async () => {
+    const pdfDocument = await PDFDocument.create();
+    const page1 = pdfDocument.addPage([612, 792]);
+    const page2 = pdfDocument.addPage([612, 792]);
+
+    const headerLink1 = pdfDocument.context.obj({
+      Type: PDFName.of("Annot"),
+      Subtype: PDFName.of("Link"),
+      Rect: [60, 700, 220, 750],
+      Border: [0, 0, 0],
+      A: {
+        Type: PDFName.of("Action"),
+        S: PDFName.of("URI"),
+        URI: PDFString.of("https://chatgpt.com/?utm_src=deep-research-pdf"),
+      },
+    });
+    const headerLink2 = pdfDocument.context.obj({
+      Type: PDFName.of("Annot"),
+      Subtype: PDFName.of("Link"),
+      Rect: [60, 700, 220, 750],
+      Border: [0, 0, 0],
+      A: {
+        Type: PDFName.of("Action"),
+        S: PDFName.of("URI"),
+        URI: PDFString.of("https://chatgpt.com/?utm_src=deep-research-pdf"),
+      },
+    });
+
+    const headerLinkRef1 = pdfDocument.context.register(headerLink1);
+    const headerLinkRef2 = pdfDocument.context.register(headerLink2);
+    page1.node.set(PDFName.of("Annots"), pdfDocument.context.obj([headerLinkRef1]));
+    page2.node.set(PDFName.of("Annots"), pdfDocument.context.obj([headerLinkRef2]));
+
+    const sanitizedBuffer = await sanitizeUploadedPdf(Buffer.from(await pdfDocument.save()));
+    const sanitizedPdf = await PDFDocument.load(sanitizedBuffer);
+
+    const annots1 = sanitizedPdf.getPages()[0].node.Annots();
+    const annots2 = sanitizedPdf.getPages()[1].node.Annots();
+
+    expect(annots1 ? annots1.size() : 0).toBe(0);
+    expect(annots2 ? annots2.size() : 0).toBe(0);
+  });
 });

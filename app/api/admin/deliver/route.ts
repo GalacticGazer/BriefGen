@@ -238,7 +238,12 @@ async function parseDeliveryRequest(
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("multipart/form-data")) {
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return { error: "Invalid multipart form data", status: 400 };
+    }
     const incomingReportId = formData.get("reportId");
     const uploadedFile = formData.get("pdfFile");
 
@@ -272,10 +277,17 @@ async function parseDeliveryRequest(
       return { error: "Only PDF files are allowed", status: 400 };
     }
 
+    let uploadedBytes: ArrayBuffer;
+    try {
+      uploadedBytes = await uploadedFile.arrayBuffer();
+    } catch {
+      return { error: "Failed to read uploaded PDF", status: 400 };
+    }
+
     return {
       reportId,
       markdownContent: "",
-      uploadedPdfBuffer: Buffer.from(await uploadedFile.arrayBuffer()),
+      uploadedPdfBuffer: Buffer.from(uploadedBytes),
     };
   }
 

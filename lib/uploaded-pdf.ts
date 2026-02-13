@@ -9,42 +9,38 @@ const MIN_HEADER_MASK_X = 36;
 const MIN_HEADER_MASK_TOP_OFFSET = 28;
 const MAX_HEADER_MASK_WIDTH = 240;
 const MAX_HEADER_MASK_HEIGHT = 72;
+const CHATGPT_LINK_HOSTNAME = "chatgpt.com";
 
 export async function sanitizeUploadedPdf(pdfBuffer: Buffer): Promise<Buffer> {
   const pdfDocument = await PDFDocument.load(pdfBuffer, {
     ignoreEncryption: false,
   });
-  const firstPage = pdfDocument.getPages()[0];
+  const pages = pdfDocument.getPages();
+  const firstPage = pages[0];
 
   if (!firstPage) {
     throw new Error("Uploaded PDF has no pages");
   }
 
-  const pageWidth = firstPage.getWidth();
-  const pageHeight = firstPage.getHeight();
+  for (let index = 0; index < pages.length; index += 1) {
+    const page = pages[index];
+    const maskRect = buildHeaderMaskRect(page);
+    const removedAnyChatgptLinks = removeOverlappingChatgptLinkAnnotations(page, maskRect);
 
-  const maskX = Math.max(MIN_HEADER_MASK_X, pageWidth * HEADER_MASK_X_RATIO);
-  const maskWidth = Math.min(MAX_HEADER_MASK_WIDTH, pageWidth * HEADER_MASK_WIDTH_RATIO);
-  const maskHeight = Math.min(MAX_HEADER_MASK_HEIGHT, pageHeight * HEADER_MASK_HEIGHT_RATIO);
-  const maskTopOffset = Math.max(MIN_HEADER_MASK_TOP_OFFSET, pageHeight * HEADER_MASK_TOP_OFFSET_RATIO);
-  const maskY = Math.max(0, pageHeight - maskTopOffset - maskHeight);
-
-  removeOverlappingLinkAnnotations(firstPage, {
-    x: maskX,
-    y: maskY,
-    width: maskWidth,
-    height: maskHeight,
-  });
-
-  firstPage.drawRectangle({
-    x: maskX,
-    y: maskY,
-    width: maskWidth,
-    height: maskHeight,
-    color: rgb(1, 1, 1),
-    borderColor: rgb(1, 1, 1),
-    borderWidth: 0,
-  });
+    // Always mask page 1 (that's where the branding is known to appear).
+    // For later pages, mask only if we actually removed a ChatGPT link hotspot.
+    if (index === 0 || removedAnyChatgptLinks) {
+      page.drawRectangle({
+        x: maskRect.x,
+        y: maskRect.y,
+        width: maskRect.width,
+        height: maskRect.height,
+        color: rgb(1, 1, 1),
+        borderColor: rgb(1, 1, 1),
+        borderWidth: 0,
+      });
+    }
+  }
 
   pdfDocument.setAuthor("BriefGen");
   pdfDocument.setCreator("BriefGen");
@@ -61,14 +57,29 @@ type Rect = {
   height: number;
 };
 
-function removeOverlappingLinkAnnotations(
+function buildHeaderMaskRect(page: PDFPage): Rect {
+  const pageWidth = page.getWidth();
+  const pageHeight = page.getHeight();
+
+  const x = Math.max(MIN_HEADER_MASK_X, pageWidth * HEADER_MASK_X_RATIO);
+  const width = Math.min(MAX_HEADER_MASK_WIDTH, pageWidth * HEADER_MASK_WIDTH_RATIO);
+  const height = Math.min(MAX_HEADER_MASK_HEIGHT, pageHeight * HEADER_MASK_HEIGHT_RATIO);
+  const topOffset = Math.max(MIN_HEADER_MASK_TOP_OFFSET, pageHeight * HEADER_MASK_TOP_OFFSET_RATIO);
+  const y = Math.max(0, pageHeight - topOffset - height);
+
+  return { x, y, width, height };
+}
+
+function removeOverlappingChatgptLinkAnnotations(
   page: PDFPage,
   maskRect: Rect,
-) {
+): boolean {
   const annots = page.node.Annots();
   if (!annots) {
-    return;
+    return false;
   }
+
+  let removedAny = false;
 
   for (let index = annots.size() - 1; index >= 0; index -= 1) {
     const annotation = annots.lookupMaybe(index, PDFDict);
@@ -86,12 +97,25 @@ function removeOverlappingLinkAnnotations(
       continue;
     }
 
+    const action = annotation.lookupMaybe(PDFName.of("A"), PDFDict);
+    // Do not use `lookupMaybe` without a type here; it can throw.
+    // `URI` is usually a PDFString/PDFHexString and `toString()` includes it.
+    const uriObject = action?.get(PDFName.of("URI"));
+    const uriString = uriObject?.toString() ?? "";
+
+    if (!uriString.includes(CHATGPT_LINK_HOSTNAME)) {
+      continue;
+    }
+
     annots.remove(index);
+    removedAny = true;
   }
 
   if (annots.size() === 0) {
     page.node.delete(PDFName.of("Annots"));
   }
+
+  return removedAny;
 }
 
 function doesRectOverlap(a: Rect, b: Rect): boolean {

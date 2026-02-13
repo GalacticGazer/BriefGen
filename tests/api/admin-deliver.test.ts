@@ -362,4 +362,28 @@ describe("POST /api/admin/deliver", () => {
     expect(sanitizeUploadedPdfMock).toHaveBeenCalledTimes(1);
     expect(supabase.supabaseAdmin.from).not.toHaveBeenCalled();
   });
+
+  it("treats malformed multipart bodies as 400", async () => {
+    isAdminAuthenticatedMock.mockResolvedValue(true);
+
+    const supabase = createSupabaseAdminMock();
+    supabaseModule.supabaseAdmin = supabase.supabaseAdmin;
+
+    const { POST } = await import("@/app/api/admin/deliver/route");
+    const response = await POST(
+      {
+        headers: new Headers({
+          "content-type": "multipart/form-data; boundary=missing",
+        }),
+        formData: async () => {
+          throw new Error("bad boundary");
+        },
+      } as unknown as Request,
+    );
+    const payload = await readJson<{ error: string }>(response);
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Invalid multipart form data");
+    expect(supabase.supabaseAdmin.from).not.toHaveBeenCalled();
+  });
 });
