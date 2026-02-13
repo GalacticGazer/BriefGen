@@ -280,8 +280,40 @@ export default function AdminPage() {
 
   const toggleExpanded = (report: Report) => {
     if (expandedReportId === report.id) {
+      setUploadedPdfById((prev) => {
+        if (prev[report.id] === undefined) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [report.id]: null,
+        };
+      });
+      setUploadInputVersionById((prev) => ({
+        ...prev,
+        [report.id]: (prev[report.id] ?? 0) + 1,
+      }));
       setExpandedReportId(null);
       return;
+    }
+
+    if (expandedReportId) {
+      const previousReportId = expandedReportId;
+      setUploadedPdfById((prev) => {
+        if (prev[previousReportId] === undefined) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [previousReportId]: null,
+        };
+      });
+      setUploadInputVersionById((prev) => ({
+        ...prev,
+        [previousReportId]: (prev[previousReportId] ?? 0) + 1,
+      }));
     }
 
     setExpandedReportId(report.id);
