@@ -5,11 +5,19 @@ import { sendEmail } from "@/lib/email";
 import { reportDeliveryEmail } from "@/lib/email-templates";
 import { generatePDF } from "@/lib/pdf";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { sanitizeUploadedPdf } from "@/lib/uploaded-pdf";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const MANUAL_EMAIL_CLAIM_PREFIX = "manual_email_claim:";
 const MANUAL_EMAIL_CLAIM_STALE_MS = 10 * 60 * 1000;
+const MAX_PDF_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+type ParsedDeliveryRequest = {
+  reportId: string;
+  markdownContent: string;
+  uploadedPdfBuffer: Buffer | null;
+};
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -20,17 +28,22 @@ export async function POST(request: Request) {
   let claimNotes: string | null = null;
 
   try {
-    const { reportId: incomingReportId, markdownContent } = (await request.json()) as {
-      reportId?: string;
-      markdownContent?: string;
-    };
-    reportId = incomingReportId ?? null;
-
-    const trimmedMarkdown = markdownContent?.trim() ?? "";
-
-    if (!reportId || !trimmedMarkdown) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const parsedRequest = await parseDeliveryRequest(request);
+    if ("error" in parsedRequest) {
+      return NextResponse.json({ error: parsedRequest.error }, { status: parsedRequest.status });
     }
+    reportId = parsedRequest.reportId;
+
+    const trimmedMarkdown = parsedRequest.markdownContent.trim();
+    let sanitizedUploadedPdfBuffer: Buffer | null = null;
+    if (parsedRequest.uploadedPdfBuffer) {
+      try {
+        sanitizedUploadedPdfBuffer = await sanitizeUploadedPdf(parsedRequest.uploadedPdfBuffer);
+      } catch {
+        return NextResponse.json({ error: "Uploaded file is not a valid PDF" }, { status: 400 });
+      }
+    }
+    const hasUploadedPdf = sanitizedUploadedPdfBuffer !== null;
 
     const { data: report, error: fetchError } = await supabaseAdmin
       .from("reports")
@@ -69,11 +82,7 @@ export async function POST(request: Request) {
     }
 
     const claimTimestamp = new Date().toISOString();
-    claimNotes = withClaim(
-      report.operator_notes,
-      MANUAL_EMAIL_CLAIM_PREFIX,
-      claimTimestamp,
-    );
+    claimNotes = withClaim(report.operator_notes, MANUAL_EMAIL_CLAIM_PREFIX, claimTimestamp);
 
     let claimQuery = supabaseAdmin
       .from("reports")
@@ -109,7 +118,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Delivery already in progress" }, { status: 409 });
     }
 
-    const pdfBuffer = await generatePDF(trimmedMarkdown, report.question, report.category);
+    const pdfBuffer =
+      sanitizedUploadedPdfBuffer ?? (await generatePDF(trimmedMarkdown, report.question, report.category));
 
     const pdfFileName = `${reportId}.pdf`;
     const { error: uploadError } = await supabaseAdmin.storage
@@ -125,21 +135,28 @@ export async function POST(request: Request) {
     const pdfUrl = urlData.publicUrl;
 
     // Persist the output, but do not mark completed until the delivery email succeeds.
+    const contentUpdateValues: {
+      report_pdf_url: string;
+      report_content?: string;
+    } = {
+      report_pdf_url: pdfUrl,
+    };
+    if (!hasUploadedPdf) {
+      contentUpdateValues.report_content = trimmedMarkdown;
+    }
+
     const { data: contentUpdate, error: contentUpdateError } = await supabaseAdmin
       .from("reports")
-      .update({
-        report_content: trimmedMarkdown,
-        report_pdf_url: pdfUrl,
-      })
+      .update(contentUpdateValues)
       .eq("id", reportId)
       .eq("operator_notes", claimNotes)
       .select("id")
       .maybeSingle();
 
     if (contentUpdateError || !contentUpdate) {
-      await releaseManualClaim(reportId, claimNotes, "Failed to persist report content");
+      await releaseManualClaim(reportId, claimNotes, "Failed to persist report output");
       return NextResponse.json(
-        { error: "Failed to persist report content" },
+        { error: "Failed to persist report output" },
         { status: 500 },
       );
     }
@@ -213,4 +230,72 @@ async function releaseManualClaim(reportId: string, claimNotes: string, reason: 
     .update({ operator_notes: notes })
     .eq("id", reportId)
     .eq("operator_notes", claimNotes);
+}
+
+async function parseDeliveryRequest(
+  request: Request,
+): Promise<ParsedDeliveryRequest | { error: string; status: number }> {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+    const incomingReportId = formData.get("reportId");
+    const uploadedFile = formData.get("pdfFile");
+
+    const reportId = typeof incomingReportId === "string" ? incomingReportId.trim() : "";
+    if (!reportId) {
+      return { error: "Missing required fields", status: 400 };
+    }
+
+    if (!(uploadedFile instanceof File)) {
+      return { error: "PDF file is required", status: 400 };
+    }
+
+    if (uploadedFile.size === 0) {
+      return { error: "PDF file is empty", status: 400 };
+    }
+
+    if (uploadedFile.size > MAX_PDF_UPLOAD_BYTES) {
+      return { error: "PDF file exceeds the 20MB limit", status: 400 };
+    }
+
+    const normalizedMime = uploadedFile.type.toLowerCase();
+    const normalizedName = uploadedFile.name.toLowerCase();
+    const isPdfMime =
+      normalizedMime === "" ||
+      normalizedMime === "application/pdf" ||
+      normalizedMime === "application/x-pdf" ||
+      normalizedMime === "application/octet-stream";
+    const isPdfName = normalizedName.endsWith(".pdf");
+
+    if (!isPdfMime || !isPdfName) {
+      return { error: "Only PDF files are allowed", status: 400 };
+    }
+
+    return {
+      reportId,
+      markdownContent: "",
+      uploadedPdfBuffer: Buffer.from(await uploadedFile.arrayBuffer()),
+    };
+  }
+
+  let payload: { reportId?: string; markdownContent?: string };
+  try {
+    payload = (await request.json()) as { reportId?: string; markdownContent?: string };
+  } catch {
+    return { error: "Invalid JSON body", status: 400 };
+  }
+
+  const reportId = payload.reportId?.trim() ?? "";
+  const markdownContent = payload.markdownContent?.trim() ?? "";
+
+  if (!reportId || !markdownContent) {
+    return { error: "Missing required fields", status: 400 };
+  }
+
+  return {
+    reportId,
+    markdownContent,
+    uploadedPdfBuffer: null,
+  };
 }
