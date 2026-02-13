@@ -344,7 +344,7 @@ export const formContent = {
     questionLabel: "Research question",
     contextLabel: "Optional context",
     reassurance: "Secure checkout via Stripe. No account required. You will be redirected to Stripe to complete checkout.",
-    editButton: "Edit Prompt",
+    editButton: "Edit Question",
     confirmPrefix: "Confirm & Continue",
   },
 };
