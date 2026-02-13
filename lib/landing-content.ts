@@ -301,7 +301,7 @@ export const formContent = {
     "Should a regional dental group open two new clinics in 2026 or focus on increasing utilization at existing locations first?",
     "Compare HubSpot, Salesforce, and Pipedrive for a 12-person services company that needs better lead tracking without a full-time admin.",
     "Is now a good time for a mid-size food manufacturer to expand into private-label products, and what margin risks should we expect?",
-    "I run a neighborhood daycare. What is the best way to price part-time vs full-time plans so we stay profitable and keep families happy?",
+    "I run a neighborhood daycare in Ashburn, VA. What is the best way to price part-time vs full-time plans so we stay profitable and keep families happy?",
     "I am a high school principal. Which AI tutoring tools are realistic for our budget, and what rollout plan would protect teacher adoption?",
     "My family runs a roofing business. Should we hire one more crew or invest in better scheduling software first for next season?",
     "What market entry strategy should a bootstrapped cybersecurity startup prioritize for its first 20 enterprise customers?",
