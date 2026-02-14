@@ -298,8 +298,9 @@ async function parseDeliveryRequest(
     return { error: "Invalid JSON body", status: 400 };
   }
 
-  const reportId = payload.reportId?.trim() ?? "";
-  const markdownContent = payload.markdownContent?.trim() ?? "";
+  const reportId = typeof payload.reportId === "string" ? payload.reportId.trim() : "";
+  const markdownContent =
+    typeof payload.markdownContent === "string" ? payload.markdownContent.trim() : "";
 
   if (!reportId || !markdownContent) {
     return { error: "Missing required fields", status: 400 };

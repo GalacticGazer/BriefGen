@@ -110,6 +110,32 @@ describe("POST /api/admin/deliver", () => {
     expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when reportId is not a string", async () => {
+    isAdminAuthenticatedMock.mockResolvedValue(true);
+
+    const supabase = createSupabaseAdminMock();
+    supabaseModule.supabaseAdmin = supabase.supabaseAdmin;
+
+    const { POST } = await import("@/app/api/admin/deliver/route");
+    const response = await POST(
+      new Request("http://localhost/api/admin/deliver", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reportId: 123,
+          markdownContent: "# content",
+        }),
+      }),
+    );
+    const payload = await readJson<{ error: string }>(response);
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Missing required fields");
+    expect(supabase.supabaseAdmin.from).not.toHaveBeenCalled();
+  });
+
   it("enforces manual delivery claim locks", async () => {
     isAdminAuthenticatedMock.mockResolvedValue(true);
 
