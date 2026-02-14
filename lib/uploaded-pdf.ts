@@ -22,14 +22,17 @@ export async function sanitizeUploadedPdf(pdfBuffer: Buffer): Promise<Buffer> {
     throw new Error("Uploaded PDF has no pages");
   }
 
+  let didModifyPdf = false;
+
   for (let index = 0; index < pages.length; index += 1) {
     const page = pages[index];
     const maskRect = buildHeaderMaskRect(page);
     const removedAnyChatgptLinks = removeOverlappingChatgptLinkAnnotations(page, maskRect);
 
-    // Always mask page 1 (that's where the branding is known to appear).
-    // For later pages, mask only if we actually removed a ChatGPT link hotspot.
-    if (index === 0 || removedAnyChatgptLinks) {
+    // Mask only when we actually removed a ChatGPT link hotspot in the header area.
+    // This avoids corrupting arbitrary uploaded PDFs that don't contain ChatGPT artifacts.
+    if (removedAnyChatgptLinks) {
+      didModifyPdf = true;
       page.drawRectangle({
         x: maskRect.x,
         y: maskRect.y,
@@ -40,6 +43,10 @@ export async function sanitizeUploadedPdf(pdfBuffer: Buffer): Promise<Buffer> {
         borderWidth: 0,
       });
     }
+  }
+
+  if (!didModifyPdf) {
+    return pdfBuffer;
   }
 
   pdfDocument.setAuthor("BriefGen");

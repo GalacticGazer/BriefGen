@@ -95,4 +95,29 @@ describe("sanitizeUploadedPdf", () => {
     expect(annots1 ? annots1.size() : 0).toBe(0);
     expect(annots2 ? annots2.size() : 0).toBe(0);
   });
+
+  it("does not modify PDFs that do not contain ChatGPT header links", async () => {
+    const pdfDocument = await PDFDocument.create();
+    const page = pdfDocument.addPage([612, 792]);
+
+    const headerLink = pdfDocument.context.obj({
+      Type: PDFName.of("Annot"),
+      Subtype: PDFName.of("Link"),
+      Rect: [60, 700, 220, 750],
+      Border: [0, 0, 0],
+      A: {
+        Type: PDFName.of("Action"),
+        S: PDFName.of("URI"),
+        URI: PDFString.of("https://example.com"),
+      },
+    });
+
+    const headerLinkRef = pdfDocument.context.register(headerLink);
+    page.node.set(PDFName.of("Annots"), pdfDocument.context.obj([headerLinkRef]));
+
+    const originalBuffer = Buffer.from(await pdfDocument.save());
+    const sanitizedBuffer = await sanitizeUploadedPdf(originalBuffer);
+
+    expect(sanitizedBuffer.equals(originalBuffer)).toBe(true);
+  });
 });
