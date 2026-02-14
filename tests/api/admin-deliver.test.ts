@@ -9,6 +9,7 @@ const supabaseModule = {
 const isAdminAuthenticatedMock = vi.fn();
 const generatePDFMock = vi.fn();
 const sendEmailMock = vi.fn();
+const sanitizeUploadedPdfMock = vi.fn();
 
 vi.mock("@/lib/supabase-admin", () => supabaseModule);
 vi.mock("@/lib/admin-auth", () => ({
@@ -16,6 +17,9 @@ vi.mock("@/lib/admin-auth", () => ({
 }));
 vi.mock("@/lib/pdf", () => ({
   generatePDF: generatePDFMock,
+}));
+vi.mock("@/lib/uploaded-pdf", () => ({
+  sanitizeUploadedPdf: sanitizeUploadedPdfMock,
 }));
 vi.mock("@/lib/email", () => ({
   sendEmail: sendEmailMock,
@@ -27,6 +31,7 @@ describe("POST /api/admin/deliver", () => {
     isAdminAuthenticatedMock.mockReset();
     generatePDFMock.mockReset();
     sendEmailMock.mockReset();
+    sanitizeUploadedPdfMock.mockReset();
   });
 
   it("requires admin authentication", async () => {
@@ -103,6 +108,32 @@ describe("POST /api/admin/deliver", () => {
     });
     expect(generatePDFMock).not.toHaveBeenCalled();
     expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when reportId is not a string", async () => {
+    isAdminAuthenticatedMock.mockResolvedValue(true);
+
+    const supabase = createSupabaseAdminMock();
+    supabaseModule.supabaseAdmin = supabase.supabaseAdmin;
+
+    const { POST } = await import("@/app/api/admin/deliver/route");
+    const response = await POST(
+      new Request("http://localhost/api/admin/deliver", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reportId: 123,
+          markdownContent: "# content",
+        }),
+      }),
+    );
+    const payload = await readJson<{ error: string }>(response);
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Missing required fields");
+    expect(supabase.supabaseAdmin.from).not.toHaveBeenCalled();
   });
 
   it("enforces manual delivery claim locks", async () => {
@@ -204,5 +235,181 @@ describe("POST /api/admin/deliver", () => {
       pdfUrl: "https://cdn.example.test/reports/report-1.pdf",
     });
     expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("delivers a prebuilt uploaded PDF without generating one", async () => {
+    isAdminAuthenticatedMock.mockResolvedValue(true);
+    sanitizeUploadedPdfMock.mockResolvedValue(Buffer.from("%sanitized"));
+
+    const supabase = createSupabaseAdminMock({
+      results: [
+        {
+          data: {
+            id: "report-1",
+            question: "Q",
+            category: "ai_tech",
+            customer_email: "owner@example.com",
+            email_sent: false,
+            report_pdf_url: null,
+            delivered_at: null,
+            operator_notes: null,
+          },
+          error: null,
+        },
+        {
+          data: {
+            id: "report-1",
+            email_sent: false,
+            report_pdf_url: null,
+            operator_notes: "manual_email_claim:2026-02-13T00:00:00.000Z",
+          },
+          error: null,
+        },
+        {
+          data: {
+            id: "report-1",
+          },
+          error: null,
+        },
+        {
+          data: {
+            id: "report-1",
+          },
+          error: null,
+        },
+      ],
+    });
+    supabaseModule.supabaseAdmin = supabase.supabaseAdmin;
+
+    const formData = new FormData();
+    formData.set("reportId", "report-1");
+    formData.set(
+      "pdfFile",
+      new File([Buffer.from("%PDF-1.4 test")], "finished-report.pdf", {
+        type: "application/pdf",
+      }),
+    );
+
+    const { POST } = await import("@/app/api/admin/deliver/route");
+    const response = await POST(
+      new Request("http://localhost/api/admin/deliver", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    const payload = await readJson<{ success: boolean; pdfUrl: string }>(response);
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      success: true,
+      pdfUrl: "https://cdn.example.test/reports/report-1.pdf",
+    });
+    expect(generatePDFMock).not.toHaveBeenCalled();
+    expect(sanitizeUploadedPdfMock).toHaveBeenCalledTimes(1);
+    expect(supabase.upload).toHaveBeenCalledTimes(1);
+    expect(supabase.upload).toHaveBeenCalledWith(
+      "report-1.pdf",
+      Buffer.from("%sanitized"),
+      expect.objectContaining({
+        contentType: "application/pdf",
+        upsert: true,
+      }),
+    );
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "owner@example.com",
+        idempotencyKey: "manual-delivery-report-1",
+      }),
+    );
+
+    const contentUpdate = supabase.operations.find(
+      (operation) =>
+        operation.table === "reports" &&
+        operation.action === "update" &&
+        operation.values !== undefined &&
+        typeof operation.values === "object" &&
+        operation.values !== null &&
+        "report_pdf_url" in (operation.values as Record<string, unknown>),
+    );
+    expect(contentUpdate?.values).toEqual({
+      report_pdf_url: "https://cdn.example.test/reports/report-1.pdf",
+    });
+  });
+
+  it("rejects non-pdf uploads", async () => {
+    isAdminAuthenticatedMock.mockResolvedValue(true);
+
+    const supabase = createSupabaseAdminMock();
+    supabaseModule.supabaseAdmin = supabase.supabaseAdmin;
+
+    const formData = new FormData();
+    formData.set("reportId", "report-1");
+    formData.set("pdfFile", new File(["not a pdf"], "notes.txt", { type: "text/plain" }));
+
+    const { POST } = await import("@/app/api/admin/deliver/route");
+    const response = await POST(
+      new Request("http://localhost/api/admin/deliver", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    const payload = await readJson<{ error: string }>(response);
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Only PDF files are allowed");
+    expect(supabase.supabaseAdmin.from).not.toHaveBeenCalled();
+  });
+
+  it("rejects uploaded files that are not valid PDFs", async () => {
+    isAdminAuthenticatedMock.mockResolvedValue(true);
+    sanitizeUploadedPdfMock.mockRejectedValue(new Error("Invalid PDF"));
+
+    const supabase = createSupabaseAdminMock();
+    supabaseModule.supabaseAdmin = supabase.supabaseAdmin;
+
+    const formData = new FormData();
+    formData.set("reportId", "report-1");
+    formData.set(
+      "pdfFile",
+      new File([Buffer.from("fake pdf bytes")], "fake.pdf", { type: "application/pdf" }),
+    );
+
+    const { POST } = await import("@/app/api/admin/deliver/route");
+    const response = await POST(
+      new Request("http://localhost/api/admin/deliver", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+    const payload = await readJson<{ error: string }>(response);
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Uploaded file is not a valid PDF");
+    expect(sanitizeUploadedPdfMock).toHaveBeenCalledTimes(1);
+    expect(supabase.supabaseAdmin.from).not.toHaveBeenCalled();
+  });
+
+  it("treats malformed multipart bodies as 400", async () => {
+    isAdminAuthenticatedMock.mockResolvedValue(true);
+
+    const supabase = createSupabaseAdminMock();
+    supabaseModule.supabaseAdmin = supabase.supabaseAdmin;
+
+    const { POST } = await import("@/app/api/admin/deliver/route");
+    const response = await POST(
+      {
+        headers: new Headers({
+          "content-type": "multipart/form-data; boundary=missing",
+        }),
+        formData: async () => {
+          throw new Error("bad boundary");
+        },
+      } as unknown as Request,
+    );
+    const payload = await readJson<{ error: string }>(response);
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Invalid multipart form data");
+    expect(supabase.supabaseAdmin.from).not.toHaveBeenCalled();
   });
 });

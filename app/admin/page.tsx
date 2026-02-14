@@ -32,12 +32,14 @@ type DeliveryState = {
   loading: boolean;
   success: boolean;
   error: string | null;
+  mode: "markdown" | "upload" | null;
 };
 
 const INITIAL_DELIVERY_STATE: DeliveryState = {
   loading: false,
   success: false,
   error: null,
+  mode: null,
 };
 
 const STATUS_STYLES: Record<ReportStatus, string> = {
@@ -90,6 +92,8 @@ export default function AdminPage() {
   const [allLimit, setAllLimit] = useState(50);
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [uploadedPdfById, setUploadedPdfById] = useState<Record<string, File | null>>({});
+  const [uploadInputVersionById, setUploadInputVersionById] = useState<Record<string, number>>({});
   const [deliveryStateById, setDeliveryStateById] = useState<Record<string, DeliveryState>>({});
 
   const fetchStats = useCallback(async (): Promise<boolean> => {
@@ -276,8 +280,40 @@ export default function AdminPage() {
 
   const toggleExpanded = (report: Report) => {
     if (expandedReportId === report.id) {
+      setUploadedPdfById((prev) => {
+        if (prev[report.id] === undefined) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [report.id]: null,
+        };
+      });
+      setUploadInputVersionById((prev) => ({
+        ...prev,
+        [report.id]: (prev[report.id] ?? 0) + 1,
+      }));
       setExpandedReportId(null);
       return;
+    }
+
+    if (expandedReportId) {
+      const previousReportId = expandedReportId;
+      setUploadedPdfById((prev) => {
+        if (prev[previousReportId] === undefined) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [previousReportId]: null,
+        };
+      });
+      setUploadInputVersionById((prev) => ({
+        ...prev,
+        [previousReportId]: (prev[previousReportId] ?? 0) + 1,
+      }));
     }
 
     setExpandedReportId(report.id);
@@ -309,6 +345,7 @@ export default function AdminPage() {
           loading: false,
           success: false,
           error: "Please paste markdown content before delivering.",
+          mode: "markdown",
         },
       }));
       return;
@@ -320,6 +357,7 @@ export default function AdminPage() {
         loading: true,
         success: false,
         error: null,
+        mode: "markdown",
       },
     }));
 
@@ -341,6 +379,7 @@ export default function AdminPage() {
             loading: false,
             success: false,
             error: payload.error ?? "Delivery failed.",
+            mode: "markdown",
           },
         }));
         return;
@@ -352,6 +391,7 @@ export default function AdminPage() {
           loading: false,
           success: true,
           error: null,
+          mode: "markdown",
         },
       }));
 
@@ -363,6 +403,107 @@ export default function AdminPage() {
           loading: false,
           success: false,
           error: "Network error while delivering report.",
+          mode: "markdown",
+        },
+      }));
+    }
+  };
+
+  const handleDeliverUploadedPdf = async (reportId: string) => {
+    const selectedFile = uploadedPdfById[reportId] ?? null;
+
+    if (!selectedFile) {
+      setDeliveryStateById((prev) => ({
+        ...prev,
+        [reportId]: {
+          loading: false,
+          success: false,
+          error: "Please choose a PDF file before delivering.",
+          mode: "upload",
+        },
+      }));
+      return;
+    }
+
+    const normalizedName = selectedFile.name.toLowerCase();
+    if (!normalizedName.endsWith(".pdf")) {
+      setDeliveryStateById((prev) => ({
+        ...prev,
+        [reportId]: {
+          loading: false,
+          success: false,
+          error: "Only PDF files are allowed.",
+          mode: "upload",
+        },
+      }));
+      return;
+    }
+
+    setDeliveryStateById((prev) => ({
+      ...prev,
+      [reportId]: {
+        loading: true,
+        success: false,
+        error: null,
+        mode: "upload",
+      },
+    }));
+
+    try {
+      const formData = new FormData();
+      formData.set("reportId", reportId);
+      formData.set("pdfFile", selectedFile);
+
+      const response = await fetch("/api/admin/deliver", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json().catch(() => ({ error: null }))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setDeliveryStateById((prev) => ({
+          ...prev,
+          [reportId]: {
+            loading: false,
+            success: false,
+            error: payload.error ?? "Delivery failed.",
+            mode: "upload",
+          },
+        }));
+        return;
+      }
+
+      setDeliveryStateById((prev) => ({
+        ...prev,
+        [reportId]: {
+          loading: false,
+          success: true,
+          error: null,
+          mode: "upload",
+        },
+      }));
+
+      setUploadedPdfById((prev) => ({
+        ...prev,
+        [reportId]: null,
+      }));
+      setUploadInputVersionById((prev) => ({
+        ...prev,
+        [reportId]: (prev[reportId] ?? 0) + 1,
+      }));
+
+      await loadDashboard(allLimit);
+    } catch {
+      setDeliveryStateById((prev) => ({
+        ...prev,
+        [reportId]: {
+          loading: false,
+          success: false,
+          error: "Network error while delivering report.",
+          mode: "upload",
         },
       }));
     }
@@ -531,6 +672,32 @@ export default function AdminPage() {
                               />
                             </div>
 
+                            <div className="space-y-2">
+                              <label
+                                htmlFor={`pdf-upload-${report.id}`}
+                                className="text-sm font-medium text-gray-700"
+                              >
+                                Upload Ready PDF
+                              </label>
+                              <input
+                                key={`${report.id}-${uploadInputVersionById[report.id] ?? 0}`}
+                                id={`pdf-upload-${report.id}`}
+                                type="file"
+                                accept="application/pdf"
+                                onChange={(event) => {
+                                  const selectedFile = event.target.files?.[0] ?? null;
+                                  setUploadedPdfById((prev) => ({
+                                    ...prev,
+                                    [report.id]: selectedFile,
+                                  }));
+                                }}
+                                className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-brand-600 hover:file:bg-brand-100 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                              />
+                              <p className="text-xs text-gray-500">
+                                Use this when you already have a completed PDF.
+                              </p>
+                            </div>
+
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                               <button
                                 type="button"
@@ -538,9 +705,19 @@ export default function AdminPage() {
                                 disabled={deliveryState.loading}
                                 className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-300"
                               >
-                                {deliveryState.loading
+                                {deliveryState.loading && deliveryState.mode === "markdown"
                                   ? "Generating PDF & Delivering..."
                                   : "Generate PDF & Deliver"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeliverUploadedPdf(report.id)}
+                                disabled={deliveryState.loading}
+                                className="inline-flex items-center justify-center rounded-lg border border-brand-500 bg-white px-5 py-3 text-sm font-semibold text-brand-500 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-300"
+                              >
+                                {deliveryState.loading && deliveryState.mode === "upload"
+                                  ? "Uploading PDF & Delivering..."
+                                  : "Upload PDF & Deliver"}
                               </button>
 
                               {deliveryState.success && (
