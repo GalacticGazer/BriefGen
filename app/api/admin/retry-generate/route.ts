@@ -3,6 +3,8 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
+// Match /api/generate-report's declared duration so admin retries don't time out earlier by default.
+export const maxDuration = 60;
 
 type RequestBody = { reportId?: string };
 
@@ -78,4 +80,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
-
