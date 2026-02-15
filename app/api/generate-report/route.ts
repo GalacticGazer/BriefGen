@@ -8,7 +8,9 @@ import { generatePDF } from "@/lib/pdf";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Standard report generation can exceed 60s (LLM + PDF + storage + email), so allow a longer runtime.
+// Note: Vercel Hobby still enforces a hard 60s limit; this is for higher tiers.
+export const maxDuration = 300;
 const GENERATING_STALE_MS = 5 * 60 * 1000;
 
 export async function POST(request: Request) {
