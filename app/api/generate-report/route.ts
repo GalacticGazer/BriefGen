@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AI_CONFIG } from "@/lib/config";
+import { appendNote } from "@/lib/claim-utils";
 import { sendEmail } from "@/lib/email";
 import { reportDeliveryEmail } from "@/lib/email-templates";
 import { generateReport } from "@/lib/openai";
@@ -164,6 +165,13 @@ export async function POST(request: Request) {
       await supabaseAdmin.from("reports").update({ email_sent: true }).eq("id", reportId);
     } catch (emailError) {
       console.error("Email delivery failed:", emailError);
+      const message = emailError instanceof Error ? emailError.message : String(emailError);
+      await supabaseAdmin
+        .from("reports")
+        .update({
+          operator_notes: appendNote(report.operator_notes, `delivery_email_failed:${message}`),
+        })
+        .eq("id", reportId);
     }
 
     return NextResponse.json({

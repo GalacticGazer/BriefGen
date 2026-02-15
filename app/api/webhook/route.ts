@@ -225,6 +225,13 @@ async function notifyOperatorForPremiumReport(reportId: string) {
     });
   } catch (err) {
     console.error("Customer confirmation email failed:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await supabaseAdmin
+      .from("reports")
+      .update({
+        operator_notes: appendNote(claimedReport.operator_notes, `customer_email_failed:${message}`),
+      })
+      .eq("id", reportId);
   }
 
   // 2) Operator notification
@@ -247,6 +254,16 @@ async function notifyOperatorForPremiumReport(reportId: string) {
       operatorNotificationSent = true;
     } catch (err) {
       console.error("Operator email notification failed:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      await supabaseAdmin
+        .from("reports")
+        .update({
+          operator_notes: appendNote(
+            claimedReport.operator_notes,
+            `operator_email_failed:${message}`,
+          ),
+        })
+        .eq("id", reportId);
     }
   }
 

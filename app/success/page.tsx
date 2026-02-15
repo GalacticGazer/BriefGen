@@ -139,7 +139,7 @@ function SuccessContent() {
     <main className="min-h-screen bg-white px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl rounded-xl border border-gray-200 p-8 text-center">
         <p className="rounded-md bg-gray-100 px-3 py-2 text-xs font-medium text-gray-600">
-          Payment confirmed. Polling report status every 3 seconds.
+          Payment confirmed. Preparing your report now.
         </p>
 
         {error && (
