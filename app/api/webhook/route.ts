@@ -10,6 +10,9 @@ import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
+// Standard generation is triggered via after() and may run for minutes on higher tiers.
+// Keep this >= /api/generate-report to avoid post-response work being cut off early.
+export const maxDuration = 300;
 const PREMIUM_NOTIFICATION_CLAIM_PREFIX = "premium_notify_claim:";
 const PREMIUM_NOTIFICATION_CLAIM_STALE_MS = 10 * 60 * 1000;
 
