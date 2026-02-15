@@ -213,6 +213,7 @@ async function notifyOperatorForPremiumReport(reportId: string) {
 
   const amount = `$${(report.amount_cents / 100).toFixed(2)}`;
   let operatorNotificationSent = false;
+  const notificationNotes: string[] = [];
 
   // 1) Customer confirmation
   try {
@@ -225,6 +226,8 @@ async function notifyOperatorForPremiumReport(reportId: string) {
     });
   } catch (err) {
     console.error("Customer confirmation email failed:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    notificationNotes.push(`customer_email_failed:${message}`);
   }
 
   // 2) Operator notification
@@ -247,6 +250,8 @@ async function notifyOperatorForPremiumReport(reportId: string) {
       operatorNotificationSent = true;
     } catch (err) {
       console.error("Operator email notification failed:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      notificationNotes.push(`operator_email_failed:${message}`);
     }
   }
 
@@ -275,26 +280,40 @@ async function notifyOperatorForPremiumReport(reportId: string) {
           telegramResponse.status,
           telegramPayload?.description ?? "",
         );
+        notificationNotes.push(
+          `telegram_failed:${telegramResponse.status}:${telegramPayload?.description ?? ""}`,
+        );
       } else {
         operatorNotificationSent = true;
       }
     } catch (err) {
       console.error("Telegram notification failed:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      notificationNotes.push(`telegram_failed:${message}`);
     }
   }
 
   if (operatorNotificationSent) {
+    let finalNotes = withoutClaim(claimNotes, PREMIUM_NOTIFICATION_CLAIM_PREFIX);
+    for (const note of notificationNotes) {
+      finalNotes = appendNote(finalNotes, note);
+    }
+
     await supabaseAdmin
       .from("reports")
       .update({
         operator_notified: true,
-        operator_notes: withoutClaim(claimNotes, PREMIUM_NOTIFICATION_CLAIM_PREFIX),
+        operator_notes: finalNotes,
       })
       .eq("id", reportId)
       .eq("operator_notes", claimNotes);
   } else {
-    const failureNotes = appendNote(
-      withoutClaim(claimNotes, PREMIUM_NOTIFICATION_CLAIM_PREFIX),
+    let failureNotes = withoutClaim(claimNotes, PREMIUM_NOTIFICATION_CLAIM_PREFIX);
+    for (const note of notificationNotes) {
+      failureNotes = appendNote(failureNotes, note);
+    }
+    failureNotes = appendNote(
+      failureNotes,
       `Operator notification failed at ${new Date().toISOString()}`,
     );
     await supabaseAdmin

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AI_CONFIG } from "@/lib/config";
+import { appendNote } from "@/lib/claim-utils";
 import { sendEmail } from "@/lib/email";
 import { reportDeliveryEmail } from "@/lib/email-templates";
 import { generateReport } from "@/lib/openai";
@@ -131,22 +132,24 @@ export async function POST(request: Request) {
       throw new Error(`PDF upload failed: ${uploadError.message}`);
     }
 
-    const { data: urlData } = supabaseAdmin.storage.from("reports").getPublicUrl(pdfFileName);
+	    const { data: urlData } = supabaseAdmin.storage.from("reports").getPublicUrl(pdfFileName);
 
-    const pdfUrl = urlData.publicUrl;
+	    const pdfUrl = urlData.publicUrl;
 
-    const { data: completionUpdate, error: completionUpdateError } = await supabaseAdmin
-      .from("reports")
-      .update({
-        report_status: "completed",
-        report_content: content,
-        report_pdf_url: pdfUrl,
-        delivered_at: new Date().toISOString(),
-        operator_notes: `Model: ${AI_CONFIG.model} | Tokens: ${usage.inputTokens}in/${usage.outputTokens}out | Cost: $${usage.estimatedCost}`,
-      })
-      .eq("id", reportId)
-      .select("id")
-      .maybeSingle();
+	    const completionNotes = `Model: ${AI_CONFIG.model} | Tokens: ${usage.inputTokens}in/${usage.outputTokens}out | Cost: $${usage.estimatedCost}`;
+
+	    const { data: completionUpdate, error: completionUpdateError } = await supabaseAdmin
+	      .from("reports")
+	      .update({
+	        report_status: "completed",
+	        report_content: content,
+	        report_pdf_url: pdfUrl,
+	        delivered_at: new Date().toISOString(),
+	        operator_notes: completionNotes,
+	      })
+	      .eq("id", reportId)
+	      .select("id")
+	      .maybeSingle();
 
     if (completionUpdateError || !completionUpdate) {
       throw new Error("Failed to persist completed report state");
@@ -164,6 +167,21 @@ export async function POST(request: Request) {
       await supabaseAdmin.from("reports").update({ email_sent: true }).eq("id", reportId);
     } catch (emailError) {
       console.error("Email delivery failed:", emailError);
+      const message = emailError instanceof Error ? emailError.message : String(emailError);
+      // Best-effort: do not let a logging/update failure downgrade a completed report to failed.
+      try {
+        const { error: noteError } = await supabaseAdmin
+          .from("reports")
+          .update({
+            operator_notes: appendNote(completionNotes, `delivery_email_failed:${message}`),
+          })
+          .eq("id", reportId);
+        if (noteError) {
+          console.error("Failed to persist email failure note:", noteError);
+        }
+      } catch (noteWriteError) {
+        console.error("Failed to persist email failure note:", noteWriteError);
+      }
     }
 
     return NextResponse.json({
