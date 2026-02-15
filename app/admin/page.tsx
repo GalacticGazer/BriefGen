@@ -18,6 +18,7 @@ type Report = {
   amount_cents: number;
   report_pdf_url: string | null;
   report_content: string | null;
+  operator_notes?: string | null;
 };
 
 type DashboardStats = {
@@ -66,6 +67,11 @@ function formatDate(value: string): string {
 
 function truncateQuestion(question: string): string {
   return question.length > 60 ? `${question.slice(0, 60)}...` : question;
+}
+
+function truncateNotes(notes: string): string {
+  const trimmed = notes.trim();
+  return trimmed.length > 140 ? `${trimmed.slice(0, 140)}...` : trimmed;
 }
 
 function toStatusLabel(status: ReportStatus): string {
@@ -406,6 +412,40 @@ export default function AdminPage() {
           mode: "markdown",
         },
       }));
+    }
+  };
+
+  const handleRetryStandard = async (reportId: string) => {
+    setIsLoadingDashboard(true);
+    setDashboardError(null);
+
+    try {
+      const response = await fetch("/api/admin/retry-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId }),
+      });
+
+      if (response.status === 401) {
+        setAuthState("unauthenticated");
+        return;
+      }
+
+      const payload = (await response.json().catch(() => ({ error: null }))) as {
+        error?: string | null;
+        details?: string | null;
+      };
+
+      if (!response.ok) {
+        setDashboardError(payload.error ?? "Retry failed.");
+        return;
+      }
+
+      await loadDashboard(allLimit);
+    } catch {
+      setDashboardError("Unexpected error while retrying report generation.");
+    } finally {
+      setIsLoadingDashboard(false);
     }
   };
 
@@ -761,6 +801,7 @@ export default function AdminPage() {
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2">Amount</th>
                         <th className="px-3 py-2">PDF</th>
+                        <th className="px-3 py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -776,6 +817,11 @@ export default function AdminPage() {
                             >
                               {toStatusLabel(report.report_status)}
                             </span>
+                            {report.report_status === "failed" && report.operator_notes && (
+                              <p className="mt-2 max-w-[420px] text-xs text-red-700">
+                                {truncateNotes(report.operator_notes)}
+                              </p>
+                            )}
                           </td>
                           <td className="px-3 py-3">{formatMoney(report.amount_cents / 100)}</td>
                           <td className="px-3 py-3">
@@ -788,6 +834,19 @@ export default function AdminPage() {
                               >
                                 Download
                               </a>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            {report.report_type === "standard" && report.report_status === "failed" ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleRetryStandard(report.id)}
+                                className="text-brand-500 transition-colors hover:text-brand-600"
+                              >
+                                Retry
+                              </button>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
