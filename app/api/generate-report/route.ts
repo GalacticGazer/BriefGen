@@ -165,16 +165,24 @@ export async function POST(request: Request) {
       });
 
       await supabaseAdmin.from("reports").update({ email_sent: true }).eq("id", reportId);
-	    } catch (emailError) {
-	      console.error("Email delivery failed:", emailError);
-	      const message = emailError instanceof Error ? emailError.message : String(emailError);
-	      await supabaseAdmin
-	        .from("reports")
-	        .update({
-	          operator_notes: appendNote(completionNotes, `delivery_email_failed:${message}`),
-	        })
-	        .eq("id", reportId);
-	    }
+    } catch (emailError) {
+      console.error("Email delivery failed:", emailError);
+      const message = emailError instanceof Error ? emailError.message : String(emailError);
+      // Best-effort: do not let a logging/update failure downgrade a completed report to failed.
+      try {
+        const { error: noteError } = await supabaseAdmin
+          .from("reports")
+          .update({
+            operator_notes: appendNote(completionNotes, `delivery_email_failed:${message}`),
+          })
+          .eq("id", reportId);
+        if (noteError) {
+          console.error("Failed to persist email failure note:", noteError);
+        }
+      } catch (noteWriteError) {
+        console.error("Failed to persist email failure note:", noteWriteError);
+      }
+    }
 
     return NextResponse.json({
       success: true,
