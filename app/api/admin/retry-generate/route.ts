@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 // Match /api/generate-report's declared duration so admin retries don't time out earlier by default.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type RequestBody = { reportId?: string };
 
