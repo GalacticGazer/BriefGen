@@ -77,6 +77,22 @@ function htmlToPlainText(html: string): string {
   return html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(
+      /<a\b[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a>/gi,
+      (_match, hrefDoubleQuoted, hrefSingleQuoted, hrefUnquoted, linkLabelHtml) => {
+        const href = (hrefDoubleQuoted || hrefSingleQuoted || hrefUnquoted || "").trim();
+        const label = String(linkLabelHtml || "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/[ \t]{2,}/g, " ")
+          .trim();
+
+        if (!href) {
+          return label;
+        }
+
+        return label ? `${label} (${href})` : href;
+      },
+    )
     .replace(/<li[^>]*>/gi, "\n- ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|blockquote|tr|table|section|article)>/gi, "\n")
