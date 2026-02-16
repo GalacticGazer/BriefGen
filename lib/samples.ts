@@ -73,15 +73,16 @@ export const featuredSamples: FeaturedSample[] = [
     title: "Featured Sample: Premium",
     tier: "Premium",
     category: "Business Strategy",
-    generatedAt: "Coming soon",
+    generatedAt: "February 2026",
     prompt:
       "Should a vertical AI compliance platform expand into EU healthcare in 2026, and what entry strategy minimizes regulatory and execution risk?",
     optionalContext:
       "Current market: US mid-market providers. Need scenario modeling, a one-page decision brief, and a prioritized 90-day action plan.",
+    downloadUrl: "/samples/premium-report.pdf",
     available: false,
     pages: [],
     statusNote:
-      "Premium sample pages are being finalized in this build. The viewer is ready and will display real Premium pages as soon as they are published.",
+      "Premium sample page previews are still being finalized, but you can review the full Premium sample PDF now.",
     decisionBriefPreview: {
       heading: "Premium one-page decision brief includes",
       bullets: [
