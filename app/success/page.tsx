@@ -210,6 +210,12 @@ function SuccessContent() {
               Our team has received your request and will deliver within 24 hours.
             </p>
             <p className="mt-2 text-sm text-gray-500">Report type: {reportType}</p>
+            <Link
+              href="/"
+              className="mt-6 inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-brand-500 hover:text-brand-500"
+            >
+              Back to Homepage
+            </Link>
           </section>
         )}
 
