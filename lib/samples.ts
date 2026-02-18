@@ -72,25 +72,43 @@ export const featuredSamples: FeaturedSample[] = [
     id: "premium",
     title: "Featured Sample: Premium",
     tier: "Premium",
-    category: "Business Strategy",
+    category: "Market & Industry Research",
     generatedAt: "February 2026",
     prompt:
-      "Should a vertical AI compliance platform expand into EU healthcare in 2026, and what entry strategy minimizes regulatory and execution risk?",
+      "How attractive is the U.S. fintech AI compliance software market for a new entrant over the next 18 months?",
     optionalContext:
-      "Current market: US mid-market providers. Need scenario modeling, a one-page decision brief, and a prioritized 90-day action plan.",
+      "Focus on mid-market financial services. Need TAM/SAM framing, buyer urgency signals, and likely sales-cycle blockers.",
     downloadUrl: "/samples/premium-report.pdf",
-    available: false,
-    pages: [],
-    statusNote:
-      "Premium sample page previews are still being finalized, but you can review the full Premium sample PDF now.",
-    decisionBriefPreview: {
-      heading: "Premium one-page decision brief includes",
-      bullets: [
-        "Recommendation confidence score with top assumptions",
-        "Scenario table: base / upside / downside outcomes",
-        "Top 3 risks with immediate mitigations",
-        "Prioritized 90-day action plan",
-      ],
-    },
+    available: true,
+    pages: [
+      {
+        id: "market_overview",
+        label: "Market overview",
+        page: "Page 1",
+        image: "/samples/premium/market-overview.webp",
+        alt: "Premium sample market overview page with TAM and growth context",
+      },
+      {
+        id: "buyer_urgency",
+        label: "Buyer urgency",
+        page: "Page 3",
+        image: "/samples/premium/buyer-urgency.webp",
+        alt: "Premium sample page outlining urgency signals for compliance software buyers",
+      },
+      {
+        id: "sales_cycle_blockers",
+        label: "Sales blockers",
+        page: "Page 5",
+        image: "/samples/premium/sales-cycle-blockers.webp",
+        alt: "Premium sample page covering common blockers in RegTech sales cycles",
+      },
+      {
+        id: "sources",
+        label: "Sources",
+        page: "Page 8",
+        image: "/samples/premium/sources.webp",
+        alt: "Premium sample sources section with citations and links",
+      },
+    ],
   },
 ];

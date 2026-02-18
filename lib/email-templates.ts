@@ -11,6 +11,22 @@ function truncateQuestion(question: string): string {
   return question.length > 80 ? `${question.substring(0, 80)}...` : question;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  ai_tech: "AI & Technology Analysis",
+  market_research: "Market & Industry Research",
+  competitive: "Competitive Analysis",
+  business_strategy: "Business Strategy",
+  sales: "Sales Research Brief",
+  legal: "Legal Research Brief",
+  product: "Product Research Brief",
+  operations: "Operations Research Brief",
+  custom: "Custom Research Report",
+};
+
+function formatCategory(category: string): string {
+  return CATEGORY_LABELS[category] ?? category.replace(/_/g, " ");
+}
+
 export function reportDeliveryEmail(
   question: string,
   pdfUrl: string,
@@ -162,9 +178,18 @@ export function premiumReportReceivedEmail(question: string): { subject: string;
 export function operatorNotificationEmail(
   reportId: string,
   customerEmail: string,
+  category: string,
   question: string,
   amount: string,
 ): { subject: string; html: string } {
+  const categoryLabel = formatCategory(category);
+  const deepResearchPrompt = [
+    `Research Category: ${categoryLabel}`,
+    `Research Question: ${question}`,
+    "",
+    "Run deep research focused on this category and produce an analyst-grade premium report with clear recommendation, key risks, practical tradeoffs, and cited sources.",
+  ].join("\n");
+
   return {
     subject: `🔔 New Premium Report Request - ${escapeHtml(amount)}`,
     html: `
@@ -174,13 +199,18 @@ export function operatorNotificationEmail(
     <tr><td style="padding:8px 0; font-weight:600; width:120px;">Customer:</td><td>${escapeHtml(customerEmail)}</td></tr>
     <tr><td style="padding:8px 0; font-weight:600;">Amount:</td><td>${escapeHtml(amount)}</td></tr>
     <tr><td style="padding:8px 0; font-weight:600;">Report ID:</td><td style="font-family:monospace; font-size:13px;">${escapeHtml(reportId)}</td></tr>
+    <tr><td style="padding:8px 0; font-weight:600;">Category:</td><td>${escapeHtml(categoryLabel)}</td></tr>
   </table>
   <div style="background:#f5f5f5; padding:16px; border-radius:6px; margin:16px 0;">
-    <p style="font-weight:600; margin:0 0 8px 0;">Research Question:</p>
+    <p style="font-weight:600; margin:0 0 8px 0;">Copy/Paste Prompt for ChatGPT Deep Research:</p>
+    <pre style="margin:0; white-space:pre-wrap; word-break:break-word; line-height:1.6; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">${escapeHtml(deepResearchPrompt)}</pre>
+  </div>
+  <div style="background:#f5f5f5; padding:16px; border-radius:6px; margin:16px 0;">
+    <p style="font-weight:600; margin:0 0 8px 0;">Original Customer Question:</p>
     <p style="margin:0; line-height:1.6;">${escapeHtml(question)}</p>
   </div>
   <div style="background:#FFF3CD; padding:12px 16px; border-radius:6px; margin:16px 0;">
-    <p style="margin:0; font-size:14px;"><strong>Action required:</strong> Run this through ChatGPT Pro deep research mode, generate the PDF via the admin page, and deliver.</p>
+    <p style="margin:0; font-size:14px;"><strong>Action required:</strong> Copy the prompt block above into ChatGPT Pro deep research mode, generate the PDF via the admin page, and deliver.</p>
   </div>
 </div>`,
   };
