@@ -285,8 +285,13 @@ async function getGaAccessToken(clientEmail: string, privateKey: string): Promis
     scopes: GA_SCOPES,
   });
 
-  const token = await jwtClient.getAccessToken();
-  if (!token || typeof token !== "string") {
+  const tokenResponse = await jwtClient.getAccessToken();
+  const token =
+    typeof tokenResponse === "string"
+      ? tokenResponse
+      : (tokenResponse?.token ?? "");
+
+  if (!token) {
     throw new Error("Unable to obtain GA4 access token");
   }
 
