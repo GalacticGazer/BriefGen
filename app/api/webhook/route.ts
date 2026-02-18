@@ -241,6 +241,7 @@ async function notifyOperatorForPremiumReport(reportId: string) {
       const opEmail = operatorNotificationEmail(
         reportId,
         claimedReport.customer_email,
+        claimedReport.category,
         claimedReport.question,
         amount,
       );
