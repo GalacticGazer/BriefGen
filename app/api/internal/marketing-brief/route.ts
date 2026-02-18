@@ -10,6 +10,7 @@ const GA_SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"];
 const DEFAULT_TIMEZONE = "America/New_York";
 
 type ReportRow = {
+  id: string;
   created_at: string;
   amount_cents: number;
   payment_status: string;
@@ -38,6 +39,9 @@ type FunnelSnapshot = {
 };
 
 type GaRunReportResponse = {
+  metadata?: {
+    timeZone?: string;
+  };
   rows?: Array<{
     dimensionValues?: Array<{ value?: string }>;
     metricValues?: Array<{ value?: string }>;
@@ -50,7 +54,25 @@ type TrafficSnapshot = {
   users: number;
 };
 
-type TrafficData = Awaited<ReturnType<typeof fetchTrafficData>>;
+type TrafficSource = {
+  sourceMedium: string;
+  sessions: number;
+};
+
+type TrafficChannel = {
+  channel: string;
+  sessions: number;
+};
+
+type TrafficData = {
+  configured: boolean;
+  warning: string | null;
+  timezone: string | null;
+  target: TrafficSnapshot;
+  previous: TrafficSnapshot;
+  topSources: TrafficSource[];
+  topChannels: TrafficChannel[];
+};
 
 function getAuthorizedSecrets() {
   return [
@@ -196,20 +218,32 @@ async function fetchFunnelSnapshots(
   previousDate: string,
   timezone: string,
 ): Promise<{ target: FunnelSnapshot; previous: FunnelSnapshot }> {
+  const pageSize = 1000;
   const lowerInclusive = shiftDate(previousDate, -1);
   const upperExclusive = shiftDate(targetDate, 2);
+  const rows: ReportRow[] = [];
 
-  const { data, error } = await supabaseAdmin
-    .from("reports")
-    .select("created_at, amount_cents, payment_status, report_type, category")
-    .gte("created_at", `${lowerInclusive}T00:00:00.000Z`)
-    .lt("created_at", `${upperExclusive}T00:00:00.000Z`);
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabaseAdmin
+      .from("reports")
+      .select("id, created_at, amount_cents, payment_status, report_type, category")
+      .gte("created_at", `${lowerInclusive}T00:00:00.000Z`)
+      .lt("created_at", `${upperExclusive}T00:00:00.000Z`)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
 
-  if (error) {
-    throw new Error(`Failed to load report funnel metrics: ${error.message}`);
+    if (error) {
+      throw new Error(`Failed to load report funnel metrics: ${error.message}`);
+    }
+
+    const batch = (data ?? []) as ReportRow[];
+    rows.push(...batch);
+
+    if (batch.length < pageSize) {
+      break;
+    }
   }
-
-  const rows = (data ?? []) as ReportRow[];
   const targetRows: ReportRow[] = [];
   const previousRows: ReportRow[] = [];
 
@@ -294,7 +328,7 @@ function readTrafficSnapshot(report: GaRunReportResponse): TrafficSnapshot {
   };
 }
 
-async function fetchTrafficData(targetDate: string, previousDate: string) {
+async function fetchTrafficData(targetDate: string, previousDate: string): Promise<TrafficData> {
   const creds = getGaCredentials();
   if (!creds) {
     return {
@@ -303,8 +337,9 @@ async function fetchTrafficData(targetDate: string, previousDate: string) {
         "GA4 is not configured. Set GA4_PROPERTY_ID, GA4_SERVICE_ACCOUNT_EMAIL, and GA4_SERVICE_ACCOUNT_PRIVATE_KEY.",
       target: { sessions: 0, engagedSessions: 0, users: 0 },
       previous: { sessions: 0, engagedSessions: 0, users: 0 },
-      topSources: [] as Array<{ sourceMedium: string; sessions: number }>,
-      topChannels: [] as Array<{ channel: string; sessions: number }>,
+      timezone: null,
+      topSources: [],
+      topChannels: [],
     };
   }
 
@@ -337,6 +372,7 @@ async function fetchTrafficData(targetDate: string, previousDate: string) {
   return {
     configured: true,
     warning: null,
+    timezone: targetTotals.metadata?.timeZone ?? null,
     target: readTrafficSnapshot(targetTotals),
     previous: readTrafficSnapshot(previousTotals),
     topSources: (topSourcesReport.rows ?? []).map((row) => ({
@@ -354,6 +390,7 @@ function createUnavailableTrafficData(warning: string | null): TrafficData {
   return {
     configured: false,
     warning,
+    timezone: null,
     target: { sessions: 0, engagedSessions: 0, users: 0 },
     previous: { sessions: 0, engagedSessions: 0, users: 0 },
     topSources: [],
@@ -387,7 +424,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const targetDate = resolveTargetDate(url.searchParams.get("date"), timezone);
+  const requestedDate = url.searchParams.get("date");
+  const targetDate = resolveTargetDate(requestedDate, timezone);
   if (!targetDate) {
     return NextResponse.json(
       { error: "Invalid date format. Use YYYY-MM-DD." },
@@ -395,20 +433,47 @@ export async function GET(request: Request) {
     );
   }
 
-  const previousDate = shiftDate(targetDate, -1);
+  let effectiveTimezone = timezone;
+  let effectiveTargetDate = targetDate;
+  let previousDate = shiftDate(effectiveTargetDate, -1);
   const warnings: string[] = [];
 
   try {
-    const trafficPromise = fetchTrafficData(targetDate, previousDate).catch((error) => {
+    let traffic = await fetchTrafficData(effectiveTargetDate, previousDate).catch((error) => {
       console.error("Traffic metrics fetch failed for marketing brief:", error);
       const details = error instanceof Error ? error.message : "Unknown GA4 error";
       return createUnavailableTrafficData(`GA4 traffic metrics unavailable: ${details}`);
     });
 
-    const [funnel, traffic] = await Promise.all([
-      fetchFunnelSnapshots(targetDate, previousDate, timezone),
-      trafficPromise,
-    ]);
+    if (traffic.configured && traffic.timezone && traffic.timezone !== timezone) {
+      effectiveTimezone = traffic.timezone;
+      warnings.push(
+        `Requested timezone (${timezone}) differs from GA4 property timezone (${traffic.timezone}). Using GA4 timezone for aligned windows.`,
+      );
+
+      if (!requestedDate) {
+        const alignedTargetDate = resolveTargetDate(null, effectiveTimezone);
+        if (!alignedTargetDate) {
+          return NextResponse.json(
+            { error: "Failed to resolve aligned target date for GA4 timezone." },
+            { status: 500 },
+          );
+        }
+
+        if (alignedTargetDate !== effectiveTargetDate) {
+          effectiveTargetDate = alignedTargetDate;
+          previousDate = shiftDate(effectiveTargetDate, -1);
+
+          traffic = await fetchTrafficData(effectiveTargetDate, previousDate).catch((error) => {
+            console.error("Traffic metrics fetch failed after timezone alignment:", error);
+            const details = error instanceof Error ? error.message : "Unknown GA4 error";
+            return createUnavailableTrafficData(`GA4 traffic metrics unavailable: ${details}`);
+          });
+        }
+      }
+    }
+
+    const funnel = await fetchFunnelSnapshots(effectiveTargetDate, previousDate, effectiveTimezone);
 
     if (traffic.warning) {
       warnings.push(traffic.warning);
@@ -421,9 +486,10 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       generatedAt: new Date().toISOString(),
-      date: targetDate,
+      date: effectiveTargetDate,
       previousDate,
-      timezone,
+      timezone: effectiveTimezone,
+      requestedTimezone: timezone,
       traffic: {
         provider: traffic.configured ? "ga4" : "unavailable",
         sessions: traffic.target.sessions,
