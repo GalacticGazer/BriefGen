@@ -27,6 +27,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - `/api/admin/stats` Dashboard metrics
 - `/api/admin/reports` Filterable report listing for admin
 - `/api/admin/deliver` Manual premium fulfillment + PDF + delivery email
+- `/api/internal/marketing-brief` Internal daily analytics brief (GA4 + funnel metrics)
 
 ## Supabase setup
 
@@ -52,6 +53,29 @@ Use `/Users/faz/briefgen/.env.local`:
 - `OPERATOR_EMAIL`
 - `NEXT_PUBLIC_SUPPORT_EMAIL`
 - Optional: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+- Optional for internal daily brief:
+  - `MARKETING_BRIEF_SECRET` (recommended dedicated secret for `/api/internal/marketing-brief`)
+  - `MARKETING_BRIEF_TIMEZONE` (default: `America/New_York`)
+  - `GA4_PROPERTY_ID`
+  - `GA4_SERVICE_ACCOUNT_EMAIL`
+  - `GA4_SERVICE_ACCOUNT_PRIVATE_KEY` (replace newlines with `\n` in `.env.local`)
+
+## Daily marketing brief endpoint
+
+The endpoint returns one JSON report combining:
+- Traffic and source data from GA4 (if configured)
+- Checkout/purchase/revenue funnel metrics from Supabase
+
+Auth:
+- `Authorization: Bearer <MARKETING_BRIEF_SECRET>`
+- Fallback accepted secrets: `CRON_SECRET` or `INTERNAL_API_SECRET`
+
+Example:
+
+```bash
+curl -s "https://briefgen.ai/api/internal/marketing-brief?date=2026-02-18" \
+  -H "Authorization: Bearer $MARKETING_BRIEF_SECRET"
+```
 
 ## AI model switch
 
