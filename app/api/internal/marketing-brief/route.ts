@@ -50,6 +50,8 @@ type TrafficSnapshot = {
   users: number;
 };
 
+type TrafficData = Awaited<ReturnType<typeof fetchTrafficData>>;
+
 function getAuthorizedSecrets() {
   return [
     process.env.MARKETING_BRIEF_SECRET,
@@ -348,6 +350,17 @@ async function fetchTrafficData(targetDate: string, previousDate: string) {
   };
 }
 
+function createUnavailableTrafficData(warning: string | null): TrafficData {
+  return {
+    configured: false,
+    warning,
+    target: { sessions: 0, engagedSessions: 0, users: 0 },
+    previous: { sessions: 0, engagedSessions: 0, users: 0 },
+    topSources: [],
+    topChannels: [],
+  };
+}
+
 export async function GET(request: Request) {
   const authorizedSecrets = getAuthorizedSecrets();
   if (authorizedSecrets.length === 0) {
@@ -386,9 +399,15 @@ export async function GET(request: Request) {
   const warnings: string[] = [];
 
   try {
+    const trafficPromise = fetchTrafficData(targetDate, previousDate).catch((error) => {
+      console.error("Traffic metrics fetch failed for marketing brief:", error);
+      const details = error instanceof Error ? error.message : "Unknown GA4 error";
+      return createUnavailableTrafficData(`GA4 traffic metrics unavailable: ${details}`);
+    });
+
     const [funnel, traffic] = await Promise.all([
       fetchFunnelSnapshots(targetDate, previousDate, timezone),
-      fetchTrafficData(targetDate, previousDate),
+      trafficPromise,
     ]);
 
     if (traffic.warning) {
