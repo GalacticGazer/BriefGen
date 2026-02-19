@@ -34,16 +34,17 @@ REPORT STRUCTURE (follow this exactly):
 4. **Opportunities & Risks** (or "Pros & Cons" or "Strengths & Weaknesses" — choose the
    framing that fits the topic best)
 5. **Key Takeaways** — 4-6 bullet points. Actionable, specific, concise.
-6. **Sources & Further Reading** — Provide a curated reading list of 8-12 entries pointing to
-   general resource categories and organizations for deeper research (for example research bodies,
-   documentation libraries, and industry organizations). Do NOT generate specific report titles,
-   paper titles, publication dates, date ranges, URLs, or volume/issue identifiers.
+6. **Sources & Citations** — Provide 8-12 specific sources used in the analysis. Use numbered
+   citations and include a direct link for each source.
 
 FORMATTING RULES:
 - Output clean Markdown. Use ## for sections, ### for subsections.
 - Target 2,500-4,000 words. Be thorough but not padded.
 - Use **bold** for key terms and important data points.
 - Use bullet points sparingly — prefer prose with bullets only for lists of items.
+- Use inline numeric citations for factual claims (for example [1], [2]) and match them in
+  **Sources & Citations**.
+- Each source entry must include: source/publisher, title or page name, and a direct URL.
 - Include specific numbers, percentages, and data points wherever possible.
 - Be direct and analytical. No filler phrases like "In today's fast-paced world..."
 - Today's date is ${currentDate()}. Use current information.
@@ -53,7 +54,7 @@ FORMATTING RULES:
 - Do NOT end with any request for additional user input (for example "If you share..." or
   "If you provide...").
 - Do NOT offer follow-up tailoring, another pass, or next-conversation prompts.
-- End the report cleanly after Sources & Further Reading.`;
+- End the report cleanly after Sources & Citations.`;
 }
 
 const CATEGORY_PROMPTS: Record<string, string> = {

@@ -184,10 +184,18 @@ export function operatorNotificationEmail(
 ): { subject: string; html: string } {
   const categoryLabel = formatCategory(category);
   const deepResearchPrompt = [
-    `Research Category: ${categoryLabel}`,
-    `Research Question: ${question}`,
+    "FORMAT REQUIREMENTS (follow exactly):",
+    '1) Start with a section titled "1-Page Decision Brief" at the top of the document.',
+    '2) Include a section titled "Scenario Analysis" with exactly 3 scenarios: Base, Upside, Downside. For each scenario, state explicit tradeoffs.',
+    '3) Include a section titled "Prioritized Action Plan" with clearly ordered next actions.',
+    '4) Include an "Executive Summary" section and a "Key Takeaways" section.',
+    '5) Include a "Sources" section with citations and direct links.',
     "",
-    "Run deep research focused on this category and produce an analyst-grade premium report with clear recommendation, key risks, practical tradeoffs, and cited sources.",
+    `Research Category: ${categoryLabel}`,
+    "Customer Input (research question + optional context; use all details below):",
+    question,
+    "",
+    "Run deep research focused on this category and produce an analyst-grade premium report with a clear recommendation, key risks, practical tradeoffs, and cited sources.",
   ].join("\n");
 
   return {
